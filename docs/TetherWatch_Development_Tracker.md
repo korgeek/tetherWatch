@@ -53,7 +53,9 @@
 [x] Add compact traffic sparkline to first-screen chart band
 [x] Add second-level traffic sample history for hero and tile graphs
 [x] Show dual down/up traffic sparkline in hero panel
-[x] Show mini traffic graph inside Traffic tile
+[-] Show mini traffic graph inside Traffic tile
+[x] Move traffic graph to hero and remove redundant Traffic tile
+[x] Add visible Down/Up legend to the hero traffic graph
 ```
 
 ## Network State
@@ -69,6 +71,8 @@
 [x] Classify DNS as ISP/private/public resolver without GeoIP calls
 [x] Infer network country from mobile network country before SIM fallback
 [x] Show first DNS resolver IP in compact DNS tile
+[x] Show compact top header as network type, active SIM/provider, and 2-letter country code
+[x] Show DNS addresses instead of resolver/provider labels in the compact DNS tile
 ```
 
 ## Permissions
@@ -90,6 +94,7 @@
 [x] Show upstream/downstream interface when available
 [x] Show tethering error when available
 [-] Show full tethered client device list through public app API
+[x] Show tethering state and available client count in the compact top header
 [x] Verify hotspot ON screen shows Active / Wi-Fi / swlan0 on Galaxy SM-A546E
 [ ] Re-run ADB inspection with hotspot on and one connected client
 ```
@@ -105,6 +110,7 @@
 [x] Show probe latency/failure bar graph
 [x] Replace probe bar graph with Vico latency line chart and failure strip
 [x] Keep probe latency/failure visible in first-screen chart band
+[x] Show scrolling probe target chips with IP address and latest response value
 ```
 
 ## Foreground Monitoring
@@ -113,7 +119,8 @@
 [x] Add MonitorForegroundService
 [x] Add notification channel
 [-] Keep traffic/network sampling alive while screen is off
-[ ] Verify foreground service type on Galaxy Android 16
+[x] Replace connectedDevice foreground service type with dataSync for Galaxy Android 16
+[x] Verify Monitor button no longer crashes on Galaxy Android 16
 ```
 
 ## Mobile Signal
@@ -151,4 +158,8 @@
 [x] 2026-07-02 Safe-area graph-first dashboard ./gradlew :app:testDebugUnitTest
 [x] 2026-07-02 Safe-area graph-first dashboard ./gradlew :app:assembleDebug
 [x] 2026-07-02 Galaxy SM-A546E safe-area screenshot smoke: top row below status bar, bottom buttons above navigation bar, hero/traffic graphs and DNS IP visible
+[x] 2026-07-02 Info-refined dashboard ./gradlew :app:testDebugUnitTest
+[x] 2026-07-02 Info-refined dashboard ./gradlew :app:assembleDebug
+[x] 2026-07-02 Galaxy SM-A546E screenshot smoke: LTE/SIM/provider/ID header, Off 0 tether status, DNS address list, probe IP response chips, Down/Up legend visible
+[x] 2026-07-02 Galaxy SM-A546E Monitor button smoke: tap produced no AndroidRuntime fatal log and app PID stayed alive
 ```

@@ -7,7 +7,7 @@ import org.junit.Test
 
 class DashboardVisualModelBuilderTest {
     @Test
-    fun createsSixCompactTilesForTheFirstScreenDashboard() {
+    fun createsCompactHeaderAndEssentialTilesForTheFirstScreenDashboard() {
         val state = DashboardState(
             score = DashboardScore(86, DashboardHealth.EXCELLENT),
             network = NetworkStateSnapshot(
@@ -15,6 +15,7 @@ class DashboardVisualModelBuilderTest {
                 isValidated = true,
                 isMetered = true,
                 transports = listOf("5G/LTE"),
+                networkTypeLabel = "5G",
                 interfaceName = "rmnet0",
                 simSlots = listOf(
                     SimSlotSnapshot(0, 11, "Carrier A", "SIM 1", "KR", false, false),
@@ -40,6 +41,7 @@ class DashboardVisualModelBuilderTest {
                 types = setOf(TetheringType.WIFI),
                 downstreamInterfaces = listOf("swlan0"),
                 upstreamInterface = "rmnet15",
+                clientCount = null,
                 clientVisibility = TetheringClientVisibility.RESTRICTED
             ),
             permissions = listOf(PermissionStatus("Phone state", "android.permission.READ_PHONE_STATE", true))
@@ -47,17 +49,18 @@ class DashboardVisualModelBuilderTest {
 
         val visual = DashboardVisualModelBuilder.build(state)
 
-        assertEquals(listOf("SIM", "Network", "DNS", "Traffic", "Probe", "Tether"), visual.tiles.map { it.label })
-        assertEquals("SIM 2", visual.tiles[0].value)
-        assertEquals("Indonesia", visual.tiles[1].value)
-        assertEquals("ISP DNS", visual.tiles[2].value)
-        assertEquals("202.152.0.2 · +1", visual.tiles[2].detail)
-        assertEquals("12.40", visual.tiles[3].value)
-        assertEquals(listOf(100.0, 200.0), visual.tiles[3].downSeries)
-        assertEquals(listOf(20.0, 40.0), visual.tiles[3].upSeries)
-        assertEquals("42 ms", visual.tiles[4].value)
-        assertEquals("Active", visual.tiles[5].value)
-        assertEquals("Wi-Fi / swlan0", visual.tiles[5].detail)
+        assertEquals("5G", visual.header.networkTypeLabel)
+        assertEquals("SIM 2 · Carrier B", visual.header.simProviderLabel)
+        assertEquals("ID", visual.header.countryCode)
+        assertEquals("Tethering", visual.header.tetheringLabel)
+        assertEquals("?", visual.header.clientCountLabel)
+        assertTrue(visual.header.tetheringActive)
+        assertEquals(listOf("DNS", "Probe", "Tether"), visual.tiles.map { it.label })
+        assertEquals("202.152.0.2", visual.tiles[0].value)
+        assertEquals("10.19.19.20", visual.tiles[0].detail)
+        assertEquals("42 ms", visual.tiles[1].value)
+        assertEquals("Active", visual.tiles[2].value)
+        assertEquals("Wi-Fi / swlan0", visual.tiles[2].detail)
         assertTrue(visual.alerts.any { it.message == "Device list unavailable on this Android build." })
         assertFalse(visual.tiles.any { it.value.contains("Permission denied") })
     }
@@ -73,7 +76,18 @@ class DashboardVisualModelBuilderTest {
 
         val visual = DashboardVisualModelBuilder.build(state)
 
-        assertEquals("Denied", visual.tiles[0].value)
+        assertEquals("SIM locked", visual.header.simProviderLabel)
         assertTrue(visual.alerts.any { it.message == "Permission denied. Data was not collected." })
+    }
+
+    @Test
+    fun offTetheringShowsZeroClientsInTheHeader() {
+        val visual = DashboardVisualModelBuilder.build(
+            DashboardState(tethering = TetheringDashboard(state = TetheringState.OFF, clientCount = 0))
+        )
+
+        assertEquals("Off", visual.header.tetheringLabel)
+        assertEquals("0", visual.header.clientCountLabel)
+        assertFalse(visual.header.tetheringActive)
     }
 }

@@ -1,9 +1,19 @@
 package com.nextti.tetherwatch
 
 data class DashboardVisualModel(
+    val header: DashboardHeaderVisualModel,
     val hero: HeroVisualModel,
     val tiles: List<DashboardTileVisualModel>,
     val alerts: List<DashboardAlertVisualModel>
+)
+
+data class DashboardHeaderVisualModel(
+    val networkTypeLabel: String,
+    val simProviderLabel: String,
+    val countryCode: String,
+    val tetheringLabel: String,
+    val clientCountLabel: String,
+    val tetheringActive: Boolean
 )
 
 data class HeroVisualModel(
@@ -57,6 +67,17 @@ object DashboardVisualModelBuilder {
             state.network.simSlots.any { it.permissionDenied }
 
         return DashboardVisualModel(
+            header = DashboardHeaderVisualModel(
+                networkTypeLabel = state.network.networkTypeLabel
+                    ?: state.network.transports.firstOrNull()
+                    ?: "Offline",
+                simProviderLabel = simProviderLabel(activeSim),
+                countryCode = country.countryIso?.uppercase()?.ifBlank { "--" }?.take(2) ?: "--",
+                tetheringLabel = headerTetheringLabel(state.tethering),
+                clientCountLabel = state.tethering.clientCount?.toString()
+                    ?: if (state.tethering.state == TetheringState.OFF) "0" else "?",
+                tetheringActive = state.tethering.state == TetheringState.ACTIVE
+            ),
             hero = HeroVisualModel(
                 score = state.score.value,
                 healthLabel = state.score.health.name.lowercase().replaceFirstChar { it.uppercase() },
@@ -67,34 +88,11 @@ object DashboardVisualModelBuilder {
             ),
             tiles = listOf(
                 DashboardTileVisualModel(
-                    label = "SIM",
-                    value = simTileValue(activeSim),
-                    detail = activeSim?.carrierName ?: "No active SIM",
-                    icon = DashboardTileIcon.SIM,
-                    tone = if (activeSim?.permissionDenied == true) DashboardTileTone.WARN else DashboardTileTone.NEUTRAL
-                ),
-                DashboardTileVisualModel(
-                    label = "Network",
-                    value = country.countryLabel,
-                    detail = state.network.transports.firstOrNull() ?: "Offline",
-                    icon = DashboardTileIcon.NETWORK,
-                    tone = if (state.network.isValidated) DashboardTileTone.GOOD else DashboardTileTone.BAD
-                ),
-                DashboardTileVisualModel(
                     label = "DNS",
-                    value = state.network.dnsProfiles.firstOrNull()?.providerLabel ?: "No DNS",
+                    value = dnsValue(state.network),
                     detail = dnsDetail(state.network),
                     icon = DashboardTileIcon.DNS,
                     tone = if (state.network.dnsProfiles.isEmpty()) DashboardTileTone.WARN else DashboardTileTone.NEUTRAL
-                ),
-                DashboardTileVisualModel(
-                    label = "Traffic",
-                    value = state.traffic.downloadMbps.metricNumber(),
-                    detail = "Down Mbps",
-                    icon = DashboardTileIcon.TRAFFIC,
-                    tone = if (state.traffic.stability == TrafficStability.DROPPING) DashboardTileTone.WARN else DashboardTileTone.GOOD,
-                    downSeries = state.traffic.samples.map { it.rxBps },
-                    upSeries = state.traffic.samples.map { it.txBps }
                 ),
                 DashboardTileVisualModel(
                     label = "Probe",
@@ -142,21 +140,40 @@ object DashboardVisualModelBuilder {
         }
     }
 
-    private fun simTileValue(sim: SimSlotSnapshot?): String {
+    private fun simProviderLabel(sim: SimSlotSnapshot?): String {
         return when {
             sim == null -> "No SIM"
-            sim.permissionDenied -> "Denied"
-            sim.slotIndex >= 0 -> "SIM ${sim.slotIndex + 1}"
+            sim.permissionDenied -> "SIM locked"
+            sim.slotIndex >= 0 -> listOf("SIM ${sim.slotIndex + 1}", sim.carrierName)
+                .filter { it.isNotBlank() }
+                .joinToString(" · ")
             else -> sim.displayName
         }
     }
 
-    private fun dnsDetail(network: NetworkStateSnapshot): String {
-        val firstAddress = network.dnsProfiles.firstOrNull()?.address
+    private fun dnsValue(network: NetworkStateSnapshot): String {
+        return network.dnsProfiles.firstOrNull()?.address
             ?: network.dnsServers.firstOrNull()
-            ?: return "No resolver"
-        val extraCount = (network.dnsProfiles.size.takeIf { it > 0 } ?: network.dnsServers.size) - 1
-        return if (extraCount > 0) "$firstAddress · +$extraCount" else firstAddress
+            ?: "No DNS"
+    }
+
+    private fun dnsDetail(network: NetworkStateSnapshot): String {
+        val addresses = network.dnsProfiles.map { it.address }.ifEmpty { network.dnsServers }
+        return when {
+            addresses.isEmpty() -> "No resolver"
+            addresses.size == 1 -> "1 resolver"
+            addresses.size == 2 -> addresses[1]
+            else -> "${addresses[1]} · +${addresses.size - 2}"
+        }
+    }
+
+    private fun headerTetheringLabel(tethering: TetheringDashboard): String {
+        return when (tethering.state) {
+            TetheringState.ACTIVE -> "Tethering"
+            TetheringState.OFF -> "Off"
+            TetheringState.RESTRICTED -> "Restricted"
+            TetheringState.UNAVAILABLE -> "Unavailable"
+        }
     }
 
     private fun tetherValue(tethering: TetheringDashboard): String {

@@ -7,6 +7,7 @@ import android.app.Service
 import android.content.Intent
 import android.os.Build
 import android.os.IBinder
+import android.util.Log
 import androidx.core.app.NotificationCompat
 
 class MonitorForegroundService : Service() {
@@ -30,8 +31,14 @@ class MonitorForegroundService : Service() {
             .setOngoing(true)
             .build()
 
-        startForeground(NOTIFICATION_ID, notification)
-        return START_STICKY
+        return try {
+            startForeground(NOTIFICATION_ID, notification)
+            START_STICKY
+        } catch (error: SecurityException) {
+            Log.w(TAG, "Foreground monitoring is not allowed on this build.", error)
+            stopSelf(startId)
+            START_NOT_STICKY
+        }
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -50,5 +57,6 @@ class MonitorForegroundService : Service() {
     private companion object {
         const val CHANNEL_ID = "tetherwatch_monitoring"
         const val NOTIFICATION_ID = 1001
+        const val TAG = "TetherWatchMonitor"
     }
 }

@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -157,7 +158,7 @@ private fun TetherDashboardScreen(state: DashboardState) {
             TopStatusHeader(visual)
             HeroPanel(visual.hero, state.score, state.traffic.samples)
             StatusTileGrid(visual.tiles)
-            ChartBand(state)
+            ProbePanel(state)
             AlertStrip(visual.alerts)
             Spacer(Modifier.height(4.dp))
         }
@@ -177,7 +178,7 @@ private fun TopStatusHeader(visual: DashboardVisualModel) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                "TetherWatch · ${visual.hero.activeSimLabel} · ${visual.hero.countryLabel}",
+                "${visual.header.networkTypeLabel} · ${visual.header.simProviderLabel} · ${visual.header.countryCode}",
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
@@ -187,10 +188,18 @@ private fun TopStatusHeader(visual: DashboardVisualModel) {
                 Box(
                     modifier = Modifier
                         .size(7.dp)
-                        .background(Color(0xFF1F7A5C), CircleShape)
+                        .background(
+                            if (visual.header.tetheringActive) Color(0xFF1F7A5C) else MaterialTheme.colorScheme.outline,
+                            CircleShape
+                        )
                 )
                 Spacer(Modifier.width(5.dp))
-                Text("Live", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold)
+                Text(
+                    "${visual.header.tetheringLabel} ${visual.header.clientCountLabel}",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1
+                )
             }
         }
     }
@@ -224,14 +233,7 @@ private fun HeroPanel(hero: HeroVisualModel, score: DashboardScore, samples: Lis
                             color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.74f)
                         )
                     }
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text("D ${hero.downloadValue}", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-                        Text(
-                            "U ${hero.uploadValue}",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.78f)
-                        )
-                    }
+                    TrafficLegend(hero)
                 }
                 DualTrafficSparkline(
                     samples = samples,
@@ -241,6 +243,32 @@ private fun HeroPanel(hero: HeroVisualModel, score: DashboardScore, samples: Lis
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun TrafficLegend(hero: HeroVisualModel) {
+    Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        LegendMetric("Down", hero.downloadValue, Color(0xFF1F7A5C))
+        LegendMetric("Up", hero.uploadValue, Color(0xFF2F6DF6))
+    }
+}
+
+@Composable
+private fun LegendMetric(label: String, value: String, color: Color) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+        Box(
+            modifier = Modifier
+                .size(7.dp)
+                .background(color, CircleShape)
+        )
+        Text(
+            "$label $value",
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.88f),
+            maxLines = 1
+        )
     }
 }
 
@@ -362,7 +390,7 @@ private fun MiniMeter(fraction: Float, color: Color) {
 }
 
 @Composable
-private fun ChartBand(state: DashboardState) {
+private fun ProbePanel(state: DashboardState) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.surface,
@@ -378,21 +406,48 @@ private fun ChartBand(state: DashboardState) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Signal flow", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                Text("Probe response", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                 Text(
                     "Loss ${state.probe.summary.packetLossPercent}% / jitter ${state.probe.summary.jitterMs ?: 0} ms",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Traffic", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    TrafficSparkline(state.traffic.buckets)
-                }
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Probe", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    ProbeLatencyChart(state.probe.history)
+            ProbeTargetStrip(state.probe.targets)
+            ProbeLatencyChart(state.probe.history)
+        }
+    }
+}
+
+@Composable
+private fun ProbeTargetStrip(targets: List<ProbeTargetState>) {
+    if (targets.isEmpty()) {
+        Text(
+            "Collecting probe responses",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        return
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        targets.forEach { target ->
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(target.label, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                    Text(target.status, style = MaterialTheme.typography.labelMedium)
                 }
             }
         }

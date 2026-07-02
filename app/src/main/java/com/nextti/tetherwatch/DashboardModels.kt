@@ -15,6 +15,7 @@ data class NetworkStateSnapshot(
     val isValidated: Boolean = false,
     val isMetered: Boolean = false,
     val transports: List<String> = emptyList(),
+    val networkTypeLabel: String? = null,
     val interfaceName: String? = null,
     val dnsServers: List<String> = emptyList(),
     val activeDataSubId: Int? = null,
@@ -79,6 +80,7 @@ data class TetheringDashboard(
     val downstreamInterfaces: List<String> = emptyList(),
     val upstreamInterface: String? = null,
     val lastError: String? = null,
+    val clientCount: Int? = null,
     val clientVisibility: TetheringClientVisibility = TetheringClientVisibility.UNKNOWN
 )
 

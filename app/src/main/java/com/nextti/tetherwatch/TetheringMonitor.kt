@@ -35,6 +35,7 @@ object TetheringDashboardBuilder {
                 state = TetheringState.OFF,
                 upstreamInterface = upstreamInterface,
                 lastError = lastError,
+                clientCount = 0,
                 clientVisibility = TetheringClientVisibility.UNKNOWN
             )
         }

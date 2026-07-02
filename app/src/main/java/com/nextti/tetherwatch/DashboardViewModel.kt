@@ -137,12 +137,16 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         val networkCountryIso = runCatching { activeTelephony.networkCountryIso }.getOrNull()
         val networkOperatorName = runCatching { activeTelephony.networkOperatorName }.getOrNull()
         val networkOperatorCode = runCatching { activeTelephony.networkOperator }.getOrNull()
+        val networkTypeLabel = runCatching { networkTypeName(activeTelephony.dataNetworkType) }
+            .getOrNull()
+            ?.takeUnless { it == "Unknown network" }
         val simCountryIso = simSlots.firstOrNull { it.activeData }?.countryIso
             ?: simSlots.firstOrNull { !it.permissionDenied }?.countryIso
         val country = NetworkCountryResolver.resolve(networkCountryIso, simCountryIso)
         val base = NetworkStateSnapshot(
             activeDataSubId = activeDataSubId,
             simSlots = simSlots,
+            networkTypeLabel = networkTypeLabel,
             networkCountryIso = networkCountryIso,
             networkOperatorName = networkOperatorName,
             networkOperatorCode = networkOperatorCode,
@@ -158,7 +162,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
             isValidated = capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED),
             isMetered = connectivity.isActiveNetworkMetered,
             transports = listOfNotNull(
-                "5G/LTE".takeIf { capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) },
+                (networkTypeLabel ?: "5G/LTE").takeIf { capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) },
                 "Wi-Fi".takeIf { capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) },
                 "Ethernet".takeIf { capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) }
             ).ifEmpty { listOf("Other") },
@@ -166,6 +170,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
             dnsServers = dnsServers,
             activeDataSubId = activeDataSubId,
             simSlots = simSlots,
+            networkTypeLabel = networkTypeLabel,
             networkCountryIso = networkCountryIso,
             networkOperatorName = networkOperatorName,
             networkOperatorCode = networkOperatorCode,
@@ -176,8 +181,8 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
 
     private suspend fun runProbes() {
         val targets = listOf(
-            "Cloudflare DNS" to "1.1.1.1",
-            "Google DNS" to "8.8.8.8"
+            "1.1.1.1" to "1.1.1.1",
+            "8.8.8.8" to "8.8.8.8"
         )
         targets.forEach { (label, host) ->
             val result = tcpProbe(label, host, 53)
