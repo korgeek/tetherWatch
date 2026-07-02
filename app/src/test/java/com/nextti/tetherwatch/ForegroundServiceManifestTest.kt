@@ -72,6 +72,10 @@ class ForegroundServiceManifestTest {
     fun foregroundServiceRunsPingWhileInBackgroundButNotificationOnlyShowsTraffic() {
         val service = File("src/main/java/com/nextti/tetherwatch/MonitorForegroundService.kt").readText()
 
+        assertTrue(service.contains("TrafficSampleHistory()"))
+        assertTrue(service.contains("trafficSampleHistory.add("))
+        assertTrue(service.contains("trafficSampleHistory.usageInLast(timestamp, 60_000L)"))
+        assertTrue(service.contains("sessionBytes ="))
         assertTrue(service.contains("PingTargetScheduler"))
         assertTrue(service.contains("EndpointTargetScheduler"))
         assertTrue(service.contains("loadMonitorProbeSettings"))

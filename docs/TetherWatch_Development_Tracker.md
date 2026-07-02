@@ -57,6 +57,7 @@ It keeps tethering state, active network type, DNS resolver IPs, live traffic, r
 [x] Set transparent system bars with readable dark status/navigation icons
 [x] Add app top navigation with Tether bold + Watch regular brand and gear Settings entry
 [x] Slim top navigation typography, padding, and settings icon size
+[x] Increase top navigation TetherWatch wordmark size while keeping Tether bold and Watch regular
 [x] Keep scroll content unmasked so text does not fade or clip while moving under header/footer bounds
 [x] Add safe bottom breathing room instead of overlaying alpha masks on dashboard content
 [x] Add subtle animated ambient background behind dashboard and Settings cards
@@ -235,7 +236,7 @@ It keeps tethering state, active network type, DNS resolver IPs, live traffic, r
 [x] Add MonitorForegroundService
 [x] Add notification channel
 [x] Start MonitorForegroundService when the dashboard launches
-[x] Show live Down/Up traffic rate in the foreground notification
+[x] Show live DN/UP traffic rate plus 60s and Session totals in the foreground notification
 [x] Keep foreground service alive when Back sends app to background
 [x] Add Back button monitoring controls: keep in background, stop monitoring, cancel
 [x] Add notification tap action that returns to the singleTop monitoring screen
@@ -244,7 +245,7 @@ It keeps tethering state, active network type, DNS resolver IPs, live traffic, r
 [x] Add Stop monitoring action directly inside the foreground notification
 [x] Run Ping from MonitorForegroundService so background monitoring keeps probing after the UI is backgrounded
 [x] Run Endpoint checks from MonitorForegroundService while keeping notification text traffic-only
-[x] Keep foreground notification focused on Down/Up traffic only; Ping runs silently in the background
+[x] Keep foreground notification focused on traffic only; Ping and Status run silently in the background
 [x] Confirm Android 13+ provides a system Active apps stop affordance for foreground services
 [~] Keep traffic/network sampling alive while screen is off
 [x] Replace connectedDevice foreground service type with dataSync for Galaxy Android 16
@@ -402,4 +403,9 @@ It keeps tethering state, active network type, DNS resolver IPs, live traffic, r
 [x] 2026-07-02 Ping/Status toggle-off console gray state ./gradlew :app:testDebugUnitTest :app:assembleDebug
 [x] 2026-07-02 Ping-off score behavior: exclude Ping/Loss/Jitter inputs and gray disabled hero lamps ./gradlew :app:testDebugUnitTest :app:assembleDebug
 [x] 2026-07-02 Galaxy SM-A546E screenshot smoke: Ping Off disables Ping/Loss/Jitter lamps and grays the Ping console; saved at /private/tmp/tetherwatch-ping-off-score-actual.png
+[x] 2026-07-03 Top navigation wordmark size ./gradlew :app:testDebugUnitTest :app:assembleDebug; Galaxy SM-A546E screenshot smoke saved at /private/tmp/tetherwatch-topnav-larger-font.png
+[x] 2026-07-03 Top navigation left margin and console row-height fix: include inter-line spacing so 6-line console setting can render 6 rows ./gradlew :app:testDebugUnitTest :app:assembleDebug
+[x] 2026-07-03 Galaxy SM-A546E screenshot smoke: Ping and Status consoles show 6 visible rows with the 6-line setting; saved at /private/tmp/tetherwatch-console-six-lines.png
+[x] 2026-07-03 Foreground notification traffic context: show current DN/UP Mbps plus 60s and Session totals so the notification is readable beyond momentary sample timing ./gradlew :app:testDebugUnitTest :app:assembleDebug
+[x] 2026-07-03 Galaxy SM-A546E notification dump: android.text shows DN/UP Mbps plus 60s and Session totals
 ```

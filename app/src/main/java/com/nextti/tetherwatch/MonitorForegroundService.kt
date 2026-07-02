@@ -76,6 +76,9 @@ class MonitorForegroundService : Service() {
             var previousRxBytes = TrafficStats.getTotalRxBytes()
             var previousTxBytes = TrafficStats.getTotalTxBytes()
             var previousTimestamp = System.currentTimeMillis()
+            val initialRxBytes = previousRxBytes
+            val initialTxBytes = previousTxBytes
+            val trafficSampleHistory = TrafficSampleHistory()
             val pingTargetScheduler = PingTargetScheduler()
             val endpointTargetScheduler = EndpointTargetScheduler()
             val endpointHttpChecker = EndpointHttpChecker()
@@ -87,8 +90,22 @@ class MonitorForegroundService : Service() {
                     val rxBytes = TrafficStats.getTotalRxBytes()
                     val txBytes = TrafficStats.getTotalTxBytes()
                     val elapsedSeconds = max(1.0, (timestamp - previousTimestamp) / 1_000.0)
-                    val rxRate = max(0L, rxBytes - previousRxBytes) / elapsedSeconds
-                    val txRate = max(0L, txBytes - previousTxBytes) / elapsedSeconds
+                    val rxDelta = max(0L, rxBytes - previousRxBytes)
+                    val txDelta = max(0L, txBytes - previousTxBytes)
+                    val rxRate = rxDelta / elapsedSeconds
+                    val txRate = txDelta / elapsedSeconds
+                    // Keep notification context alive even when the dashboard UI is backgrounded.
+                    trafficSampleHistory.add(
+                        TrafficSamplePoint(
+                            timestampMs = timestamp,
+                            rxBps = rxRate,
+                            txBps = txRate,
+                            rxBytes = rxDelta,
+                            txBytes = txDelta
+                        )
+                    )
+                    val recentUsage = trafficSampleHistory.usageInLast(timestamp, 60_000L)
+                    val sessionBytes = max(0L, rxBytes - initialRxBytes) + max(0L, txBytes - initialTxBytes)
 
                     previousRxBytes = rxBytes
                     previousTxBytes = txBytes
@@ -117,7 +134,12 @@ class MonitorForegroundService : Service() {
                     manager.notify(
                         NOTIFICATION_ID,
                         buildNotification(
-                            TrafficRateFormatter.notificationText(rxRate, txRate),
+                            TrafficRateFormatter.notificationText(
+                                rxBytesPerSecond = rxRate,
+                                txBytesPerSecond = txRate,
+                                recentBytes = recentUsage.rxBytes + recentUsage.txBytes,
+                                sessionBytes = sessionBytes
+                            ),
                             openApp,
                             stopMonitoring
                         )

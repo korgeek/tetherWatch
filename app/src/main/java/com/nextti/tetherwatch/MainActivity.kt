@@ -341,9 +341,12 @@ private fun TopNavigationBar(
                     Text("< Back")
                 }
             } else {
-                Row(verticalAlignment = Alignment.Bottom) {
-                    Text("Tether", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Text("Watch", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Normal)
+                Row(
+                    modifier = Modifier.padding(start = 4.dp),
+                    verticalAlignment = Alignment.Bottom
+                ) {
+                    Text("Tether", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text("Watch", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Normal)
                 }
             }
         }
@@ -1644,7 +1647,7 @@ private fun PingConsolePanel(lines: List<String>, settings: ProbeSettings, enabl
     ) {
         Column(
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 9.dp),
-            verticalArrangement = Arrangement.spacedBy(2.dp)
+            verticalArrangement = Arrangement.spacedBy(CONSOLE_LINE_SPACING_DP.dp)
         ) {
             if (visibleLines.isEmpty()) {
                 Text(
@@ -1697,7 +1700,7 @@ private fun EndpointConsolePanel(lines: List<String>, state: DashboardState, ena
     ) {
         Column(
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 9.dp),
-            verticalArrangement = Arrangement.spacedBy(2.dp)
+            verticalArrangement = Arrangement.spacedBy(CONSOLE_LINE_SPACING_DP.dp)
         ) {
             if (visibleLines.isEmpty()) {
                 Text(
@@ -1734,8 +1737,11 @@ private fun disabledConsoleLineColor(): Color = Color(0xFFC6CDD4)
 private fun consolePanelHeight(fontSizeSp: Int, lineCount: Int): Dp {
     val normalizedFontSize = PingConsoleFontOptions.normalize(fontSizeSp)
     val normalizedLineCount = PingConsoleLineOptions.normalize(lineCount)
-    return ((normalizedFontSize + 1) * normalizedLineCount + 18).dp
+    val lineSpacing = (normalizedLineCount - 1) * CONSOLE_LINE_SPACING_DP
+    return ((normalizedFontSize + 1) * normalizedLineCount + lineSpacing + 18).dp
 }
+
+private const val CONSOLE_LINE_SPACING_DP = 2
 
 private fun endpointConsoleLineColor(line: String): Color {
     return when (EndpointConsoleLineClassifier.tone(line)) {
