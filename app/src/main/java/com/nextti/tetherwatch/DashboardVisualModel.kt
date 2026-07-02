@@ -95,18 +95,6 @@ object DashboardVisualModelBuilder {
                     tone = if (state.network.dnsProfiles.isEmpty()) DashboardTileTone.WARN else DashboardTileTone.NEUTRAL
                 ),
                 DashboardTileVisualModel(
-                    label = "Probe",
-                    value = probeAverage?.let { "$it ms" } ?: "Failing",
-                    detail = "Loss $loss%",
-                    icon = DashboardTileIcon.PROBE,
-                    tone = when {
-                        loss >= 25 -> DashboardTileTone.BAD
-                        loss > 0 || (probeAverage ?: 0) > 200 -> DashboardTileTone.WARN
-                        else -> DashboardTileTone.GOOD
-                    },
-                    meterFraction = (1f - (loss / 100f)).coerceIn(0f, 1f)
-                ),
-                DashboardTileVisualModel(
                     label = "Tether",
                     value = tetherValue(state.tethering),
                     detail = tetherDetail(state.tethering),

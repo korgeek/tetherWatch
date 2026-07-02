@@ -6,6 +6,7 @@ data class DashboardState(
     val traffic: TrafficDashboard = TrafficDashboard(),
     val probe: ProbeDashboard = ProbeDashboard(),
     val tethering: TetheringDashboard = TetheringDashboard(),
+    val probeSettings: ProbeSettings = ProbeSettings(),
     val signal: SimpleStatus = SimpleStatus("Signal", "Permission denied. Data was not collected.", true),
     val permissions: List<PermissionStatus> = emptyList()
 )
@@ -61,6 +62,19 @@ data class ProbeTargetState(
     val target: String,
     val status: String
 )
+
+data class ProbeSettings(
+    val intervalSeconds: Int = ProbeIntervalOptions.DEFAULT_SECONDS
+)
+
+object ProbeIntervalOptions {
+    const val DEFAULT_SECONDS = 5
+    val seconds = listOf(2, 5, 10, 30)
+
+    fun normalize(value: Int): Int = if (value in seconds) value else DEFAULT_SECONDS
+
+    fun label(value: Int): String = "Every ${normalize(value)} sec"
+}
 
 data class SimpleStatus(
     val title: String,

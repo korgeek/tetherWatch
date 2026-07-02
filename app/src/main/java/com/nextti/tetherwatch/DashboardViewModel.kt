@@ -41,6 +41,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     private var previousRxBytes = initialRxBytes
     private var previousTxBytes = initialTxBytes
     private var previousTimestamp = System.currentTimeMillis()
+    private var probeSettings = ProbeSettings()
 
     private val networkCallback = object : ConnectivityManager.NetworkCallback() {
         override fun onAvailable(network: Network) = refreshNow()
@@ -64,7 +65,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         viewModelScope.launch {
             while (true) {
                 runProbes()
-                delay(5_000L)
+                delay(probeSettings.intervalSeconds * 1_000L)
             }
         }
     }
@@ -78,6 +79,11 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         viewModelScope.launch {
             sample()
         }
+    }
+
+    fun setProbeIntervalSeconds(seconds: Int) {
+        probeSettings = ProbeSettings(ProbeIntervalOptions.normalize(seconds))
+        refreshNow()
     }
 
     private suspend fun sample() {
@@ -124,6 +130,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
             traffic = traffic,
             probe = probe,
             tethering = tetheringMonitor.snapshot(),
+            probeSettings = probeSettings,
             signal = readSignal(),
             permissions = readPermissions()
         )

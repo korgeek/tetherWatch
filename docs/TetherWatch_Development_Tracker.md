@@ -111,6 +111,10 @@
 [x] Replace probe bar graph with Vico latency line chart and failure strip
 [x] Keep probe latency/failure visible in first-screen chart band
 [x] Show scrolling probe target chips with IP address and latest response value
+[x] Remove redundant Probe tile and make Probe response the primary probe surface
+[x] Double Probe response chart height for easier latency reading
+[x] Add color dots that map probe IP chips to chart series
+[x] Add tappable Probe response interval setting
 ```
 
 ## Foreground Monitoring
@@ -162,4 +166,8 @@
 [x] 2026-07-02 Info-refined dashboard ./gradlew :app:assembleDebug
 [x] 2026-07-02 Galaxy SM-A546E screenshot smoke: LTE/SIM/provider/ID header, Off 0 tether status, DNS address list, probe IP response chips, Down/Up legend visible
 [x] 2026-07-02 Galaxy SM-A546E Monitor button smoke: tap produced no AndroidRuntime fatal log and app PID stayed alive
+[x] 2026-07-02 Probe-focused dashboard ./gradlew :app:testDebugUnitTest
+[x] 2026-07-02 Probe-focused dashboard ./gradlew :app:assembleDebug
+[x] 2026-07-02 Galaxy SM-A546E screenshot smoke: Probe tile removed, bottom actions removed, enlarged Probe response visible with series color dots
+[x] 2026-07-02 Galaxy SM-A546E Probe interval smoke: tapping Probe response opens interval dialog and selecting 10 sec updates the panel label
 ```

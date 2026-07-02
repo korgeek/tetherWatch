@@ -1,19 +1,14 @@
 package com.nextti.tetherwatch
 
-import android.Manifest
-import android.content.Intent
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.provider.Settings
 import androidx.activity.SystemBarStyle
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,20 +30,23 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -63,7 +61,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.patrykandpatrick.vico.compose.cartesian.CartesianChartHost
 import com.patrykandpatrick.vico.compose.cartesian.axis.HorizontalAxis
@@ -90,7 +87,10 @@ class MainActivity : ComponentActivity() {
             TetherWatchTheme {
                 val viewModel: DashboardViewModel = viewModel()
                 val state by viewModel.state.collectAsState()
-                TetherDashboardScreen(state)
+                TetherDashboardScreen(
+                    state = state,
+                    onProbeIntervalSelected = viewModel::setProbeIntervalSeconds
+                )
             }
         }
     }
@@ -116,36 +116,17 @@ private fun TetherWatchTheme(content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun TetherDashboardScreen(state: DashboardState) {
-    val context = LocalContext.current
+private fun TetherDashboardScreen(
+    state: DashboardState,
+    onProbeIntervalSelected: (Int) -> Unit
+) {
     val visual = DashboardVisualModelBuilder.build(state)
-    val permissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) {}
+    var showProbeSettings by remember { mutableStateOf(false) }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background,
-        contentWindowInsets = WindowInsets.safeDrawing,
-        bottomBar = {
-            ActionStrip(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.background)
-                    .navigationBarsPadding()
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                onSettings = { context.startActivity(settingsIntent(context.packageName)) },
-                onPhonePermission = { permissionLauncher.launch(Manifest.permission.READ_PHONE_STATE) },
-                onMonitor = {
-                    val intent = Intent(context, MonitorForegroundService::class.java)
-                    if (Build.VERSION.SDK_INT >= 26) {
-                        ContextCompat.startForegroundService(context, intent)
-                    } else {
-                        context.startService(intent)
-                    }
-                }
-            )
-        }
+        contentWindowInsets = WindowInsets.safeDrawing
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -158,10 +139,23 @@ private fun TetherDashboardScreen(state: DashboardState) {
             TopStatusHeader(visual)
             HeroPanel(visual.hero, state.score, state.traffic.samples)
             StatusTileGrid(visual.tiles)
-            ProbePanel(state)
+            ProbePanel(
+                state = state,
+                onClick = { showProbeSettings = true }
+            )
             AlertStrip(visual.alerts)
             Spacer(Modifier.height(4.dp))
         }
+    }
+    if (showProbeSettings) {
+        ProbeSettingsDialog(
+            settings = state.probeSettings,
+            onSelect = {
+                onProbeIntervalSelected(it)
+                showProbeSettings = false
+            },
+            onDismiss = { showProbeSettings = false }
+        )
     }
 }
 
@@ -390,9 +384,11 @@ private fun MiniMeter(fraction: Float, color: Color) {
 }
 
 @Composable
-private fun ProbePanel(state: DashboardState) {
+private fun ProbePanel(state: DashboardState, onClick: () -> Unit) {
     Surface(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
         color = MaterialTheme.colorScheme.surface,
         shape = RoundedCornerShape(18.dp),
         tonalElevation = 1.dp
@@ -408,13 +404,13 @@ private fun ProbePanel(state: DashboardState) {
             ) {
                 Text("Probe response", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                 Text(
-                    "Loss ${state.probe.summary.packetLossPercent}% / jitter ${state.probe.summary.jitterMs ?: 0} ms",
+                    "${ProbeIntervalOptions.label(state.probeSettings.intervalSeconds)} · Loss ${state.probe.summary.packetLossPercent}% / jitter ${state.probe.summary.jitterMs ?: 0} ms",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             ProbeTargetStrip(state.probe.targets)
-            ProbeLatencyChart(state.probe.history)
+            ProbeLatencyChart(state.probe.history, chartHeight = 148.dp)
         }
     }
 }
@@ -435,7 +431,7 @@ private fun ProbeTargetStrip(targets: List<ProbeTargetState>) {
             .horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        targets.forEach { target ->
+        targets.forEachIndexed { index, target ->
             Surface(
                 color = MaterialTheme.colorScheme.surfaceVariant,
                 contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -446,12 +442,50 @@ private fun ProbeTargetStrip(targets: List<ProbeTargetState>) {
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .background(probeSeriesColor(index), CircleShape)
+                    )
                     Text(target.label, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
                     Text(target.status, style = MaterialTheme.typography.labelMedium)
                 }
             }
         }
     }
+}
+
+@Composable
+private fun ProbeSettingsDialog(
+    settings: ProbeSettings,
+    onSelect: (Int) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Probe interval") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                ProbeIntervalOptions.seconds.forEach { seconds ->
+                    TextButton(onClick = { onSelect(seconds) }, modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            text = if (settings.intervalSeconds == seconds) {
+                                "${ProbeIntervalOptions.label(seconds)} · selected"
+                            } else {
+                                ProbeIntervalOptions.label(seconds)
+                            },
+                            maxLines = 1
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close")
+            }
+        }
+    )
 }
 
 @Composable
@@ -473,26 +507,6 @@ private fun AlertStrip(alerts: List<DashboardAlertVisualModel>) {
                     overflow = TextOverflow.Ellipsis
                 )
             }
-        }
-    }
-}
-
-@Composable
-private fun ActionStrip(
-    modifier: Modifier = Modifier,
-    onSettings: () -> Unit,
-    onPhonePermission: () -> Unit,
-    onMonitor: () -> Unit
-) {
-    Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Button(modifier = Modifier.weight(1f), onClick = onPhonePermission) {
-            Text("SIM permission", maxLines = 1)
-        }
-        Button(modifier = Modifier.weight(1f), onClick = onMonitor) {
-            Text("Monitor", maxLines = 1)
-        }
-        Button(modifier = Modifier.weight(1f), onClick = onSettings) {
-            Text("Settings", maxLines = 1)
         }
     }
 }
@@ -532,7 +546,7 @@ private fun TrafficSparkline(buckets: List<TrafficBucket>) {
 }
 
 @Composable
-private fun ProbeLatencyChart(points: List<ProbePoint>) {
+private fun ProbeLatencyChart(points: List<ProbePoint>, chartHeight: Dp = 74.dp) {
     val chartModel = ProbeChartModelBuilder.build(points)
     val modelProducer = remember { CartesianChartModelProducer() }
     LaunchedEffect(chartModel.series) {
@@ -559,7 +573,7 @@ private fun ProbeLatencyChart(points: List<ProbePoint>) {
             modelProducer = modelProducer,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(74.dp)
+                .height(chartHeight)
         )
     }
     ProbeFailureStrip(chartModel.failures)
@@ -657,6 +671,16 @@ private fun EmptyChart(label: String) {
     }
 }
 
+private fun probeSeriesColor(index: Int): Color {
+    val colors = listOf(
+        Color(0xFF2F6DF6),
+        Color(0xFF1F7A5C),
+        Color(0xFFE6A700),
+        Color(0xFFD94A3A)
+    )
+    return colors[index % colors.size]
+}
+
 private data class TileColors(
     val container: Color,
     val accent: Color
@@ -685,10 +709,4 @@ private fun DashboardTileIcon.glyph(): String = when (this) {
     DashboardTileIcon.TRAFFIC -> "TX"
     DashboardTileIcon.PROBE -> "P"
     DashboardTileIcon.TETHER -> "TH"
-}
-
-private fun settingsIntent(packageName: String): Intent {
-    return Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-        data = Uri.fromParts("package", packageName, null)
-    }
 }
