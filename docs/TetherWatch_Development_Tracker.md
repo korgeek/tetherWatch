@@ -401,4 +401,5 @@ It keeps tethering state, active network type, DNS resolver IPs, live traffic, r
 [x] 2026-07-02 Galaxy SM-A546E screenshot smoke: Ping and Status panels show compact green toggles beside Jitter/status.json; saved at /private/tmp/tetherwatch-ping-status-toggles.png
 [x] 2026-07-02 Ping/Status toggle-off console gray state ./gradlew :app:testDebugUnitTest :app:assembleDebug
 [x] 2026-07-02 Ping-off score behavior: exclude Ping/Loss/Jitter inputs and gray disabled hero lamps ./gradlew :app:testDebugUnitTest :app:assembleDebug
+[x] 2026-07-02 Galaxy SM-A546E screenshot smoke: Ping Off disables Ping/Loss/Jitter lamps and grays the Ping console; saved at /private/tmp/tetherwatch-ping-off-score-actual.png
 ```
