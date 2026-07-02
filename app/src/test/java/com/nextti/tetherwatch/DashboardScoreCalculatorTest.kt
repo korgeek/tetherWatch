@@ -59,6 +59,48 @@ class DashboardScoreCalculatorTest {
     }
 
     @Test
+    fun excludesPingLossAndJitterFromScoreWhenPingMonitoringIsDisabled() {
+        val score = DashboardScoreCalculator.calculate(
+            isConnected = true,
+            isValidated = true,
+            averageLatencyMs = null,
+            packetLossPercent = 100,
+            jitterMs = null,
+            trafficStability = TrafficStability.STABLE,
+            pingMonitoringEnabled = false
+        )
+
+        assertEquals(100, score.value)
+        assertEquals(DashboardHealth.EXCELLENT, score.health)
+        assertEquals(
+            listOf(
+                ScoreBreakdown("LINK", 35, 35),
+                ScoreBreakdown("LAT", 0, 25, enabled = false),
+                ScoreBreakdown("LOSS", 0, 20, enabled = false),
+                ScoreBreakdown("JIT", 0, 10, enabled = false),
+                ScoreBreakdown("FLOW", 10, 10)
+            ),
+            score.breakdown
+        )
+    }
+
+    @Test
+    fun disabledPingDoesNotUseStalePacketLossForOfflineDecision() {
+        val score = DashboardScoreCalculator.calculate(
+            isConnected = true,
+            isValidated = false,
+            averageLatencyMs = null,
+            packetLossPercent = 100,
+            jitterMs = null,
+            trafficStability = TrafficStability.STABLE,
+            pingMonitoringEnabled = false
+        )
+
+        assertEquals(66, score.value)
+        assertEquals(DashboardHealth.UNSTABLE, score.health)
+    }
+
+    @Test
     fun unstableWhenLatencyAndLossAreHigh() {
         val score = DashboardScoreCalculator.calculate(
             isConnected = true,

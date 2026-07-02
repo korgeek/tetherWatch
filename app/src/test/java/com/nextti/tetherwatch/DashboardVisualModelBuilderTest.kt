@@ -53,7 +53,7 @@ class DashboardVisualModelBuilderTest {
         assertEquals("5G", visual.header.networkTypeLabel)
         assertEquals("SIM 2 · Carrier B", visual.header.simProviderLabel)
         assertEquals("ID", visual.header.countryCode)
-        assertEquals("Tethering", visual.header.tetheringLabel)
+        assertEquals("Tether On", visual.header.tetheringLabel)
         assertEquals("", visual.header.clientCountLabel)
         assertTrue(visual.header.tetheringActive)
         assertEquals(listOf("DNS"), visual.tiles.map { it.label })
@@ -119,7 +119,7 @@ class DashboardVisualModelBuilderTest {
             DashboardState(tethering = TetheringDashboard(state = TetheringState.ACTIVE, clientCount = 2))
         )
 
-        assertEquals("Tethering", visual.header.tetheringLabel)
+        assertEquals("Tether On", visual.header.tetheringLabel)
         assertEquals("2", visual.header.clientCountLabel)
         assertFalse(visual.tiles.any { it.label == "Tether" })
     }
@@ -186,13 +186,13 @@ class DashboardVisualModelBuilderTest {
     }
 
     @Test
-    fun offTetheringShowsZeroClientsInTheHeader() {
+    fun offTetheringShowsOffStateWithoutClientCountInTheHeader() {
         val visual = DashboardVisualModelBuilder.build(
             DashboardState(tethering = TetheringDashboard(state = TetheringState.OFF, clientCount = 0))
         )
 
-        assertEquals("Off", visual.header.tetheringLabel)
-        assertEquals("0", visual.header.clientCountLabel)
+        assertEquals("Tether Off", visual.header.tetheringLabel)
+        assertEquals("", visual.header.clientCountLabel)
         assertFalse(visual.header.tetheringActive)
     }
 

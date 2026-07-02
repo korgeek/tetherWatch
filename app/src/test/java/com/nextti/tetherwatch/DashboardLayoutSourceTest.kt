@@ -27,6 +27,8 @@ class DashboardLayoutSourceTest {
         assertTrue(mainActivity.contains("item.scoreBreakdownFraction()"))
         assertTrue(mainActivity.contains("Canvas(modifier = Modifier.size(13.dp))"))
         assertTrue(mainActivity.contains("color.copy(alpha = 0.26f)"))
+        assertTrue(mainActivity.contains("disabledScoreBreakdownColor()"))
+        assertTrue(mainActivity.contains("if (!enabled) return disabledScoreBreakdownColor()"))
         assertTrue(mainActivity.contains("item.displayLabel()"))
         assertTrue(mainActivity.contains("item.scoreBreakdownLampColor()"))
         assertTrue(mainActivity.contains("\"Ping\""))
@@ -84,6 +86,14 @@ class DashboardLayoutSourceTest {
         val mainActivity = File("src/main/java/com/nextti/tetherwatch/MainActivity.kt").readText()
         val viewModel = File("src/main/java/com/nextti/tetherwatch/DashboardViewModel.kt").readText()
 
+        assertTrue(mainActivity.contains("ProbePanel("))
+        assertTrue(mainActivity.contains("onPingMonitoringEnabledChanged"))
+        assertTrue(mainActivity.contains("checked = state.appSettings.pingMonitoringEnabled"))
+        assertTrue(mainActivity.contains("contentDescription = \"Toggle Ping monitoring\""))
+        assertTrue(mainActivity.contains("enabled = state.appSettings.pingMonitoringEnabled"))
+        assertTrue(mainActivity.contains("\"ping paused\""))
+        assertTrue(mainActivity.contains("consoleBackgroundColor(enabled)"))
+        assertTrue(mainActivity.contains("disabledConsoleLineColor()"))
         assertTrue(mainActivity.contains("lines.takeLast(settings.consoleLineCount)"))
         assertTrue(mainActivity.contains("fontSize = settings.consoleFontSizeSp.sp"))
         assertTrue(mainActivity.contains("lineHeight = (settings.consoleFontSizeSp + 1).sp"))
@@ -97,6 +107,7 @@ class DashboardLayoutSourceTest {
         assertTrue(!mainActivity.contains("PingSettingsDialog("))
         assertTrue(!mainActivity.contains(".clickable(onClick = onClick)"))
         assertTrue(!mainActivity.contains("\"Loss \${state.probe.summary.packetLossPercent}%"))
+        assertTrue(viewModel.contains("if (!appSettings.pingMonitoringEnabled)"))
         assertTrue(viewModel.contains("pingConsole.add(ConsoleLineTimestampFormatter.prefix(parsed.consoleLine, now))"))
     }
 
@@ -105,7 +116,14 @@ class DashboardLayoutSourceTest {
         val mainActivity = File("src/main/java/com/nextti/tetherwatch/MainActivity.kt").readText()
         val viewModel = File("src/main/java/com/nextti/tetherwatch/DashboardViewModel.kt").readText()
 
-        assertTrue(mainActivity.contains("EndpointPanel(state = state)"))
+        assertTrue(mainActivity.contains("EndpointPanel("))
+        assertTrue(mainActivity.contains("onStatusMonitoringEnabledChanged"))
+        assertTrue(mainActivity.contains("checked = state.appSettings.statusMonitoringEnabled"))
+        assertTrue(mainActivity.contains("contentDescription = \"Toggle Status monitoring\""))
+        assertTrue(mainActivity.contains("enabled = state.appSettings.statusMonitoringEnabled"))
+        assertTrue(mainActivity.contains("\"status paused\""))
+        assertTrue(mainActivity.contains("consoleBackgroundColor(enabled)"))
+        assertTrue(mainActivity.contains("disabledConsoleLineColor()"))
         assertTrue(mainActivity.contains("Text(\"Status\""))
         assertTrue(!mainActivity.contains("Text(\"Status monitoring\""))
         assertTrue(mainActivity.contains("\"status.json\""))
@@ -114,8 +132,20 @@ class DashboardLayoutSourceTest {
         assertTrue(!mainActivity.contains("endpointConsoleLineColor(line, state.probeSettings.slowResponseThresholdMs)"))
         assertTrue(viewModel.contains("EndpointHttpChecker"))
         assertTrue(viewModel.contains("runDueEndpointChecks()"))
+        assertTrue(viewModel.contains("if (!appSettings.statusMonitoringEnabled)"))
         assertTrue(viewModel.contains("ConsoleLineTimestampFormatter.prefix("))
         assertTrue(viewModel.contains("EndpointCheckResultFormatter.consoleLine(result)"))
+    }
+
+    @Test
+    fun foregroundServiceRespectsPingAndStatusMonitoringToggles() {
+        val service = File("src/main/java/com/nextti/tetherwatch/MonitorForegroundService.kt").readText()
+
+        assertTrue(service.contains("loadMonitorAppSettings()"))
+        assertTrue(service.contains("if (appSettings.pingMonitoringEnabled)"))
+        assertTrue(service.contains("if (appSettings.statusMonitoringEnabled)"))
+        assertTrue(service.contains("PING_MONITORING_ENABLED_KEY"))
+        assertTrue(service.contains("STATUS_MONITORING_ENABLED_KEY"))
     }
 
     @Test

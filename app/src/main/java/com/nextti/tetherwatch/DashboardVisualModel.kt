@@ -77,8 +77,10 @@ object DashboardVisualModelBuilder {
                 simProviderLabel = headerConnectionDetail(state.network, activeSim),
                 countryCode = country.countryIso?.uppercase()?.ifBlank { "--" }?.take(2) ?: "--",
                 tetheringLabel = headerTetheringLabel(state.tethering),
-                clientCountLabel = state.tethering.clientCount?.toString()
-                    ?: if (state.tethering.state == TetheringState.OFF) "0" else "",
+                clientCountLabel = state.tethering.clientCount
+                    ?.takeIf { state.tethering.state == TetheringState.ACTIVE }
+                    ?.toString()
+                    .orEmpty(),
                 tetheringActive = state.tethering.state == TetheringState.ACTIVE
             ),
             hero = HeroVisualModel(
@@ -194,8 +196,8 @@ object DashboardVisualModelBuilder {
 
     private fun headerTetheringLabel(tethering: TetheringDashboard): String {
         return when (tethering.state) {
-            TetheringState.ACTIVE -> "Tethering"
-            TetheringState.OFF -> "Off"
+            TetheringState.ACTIVE -> "Tether On"
+            TetheringState.OFF -> "Tether Off"
             TetheringState.RESTRICTED -> "Restricted"
             TetheringState.UNAVAILABLE -> "Unavailable"
         }

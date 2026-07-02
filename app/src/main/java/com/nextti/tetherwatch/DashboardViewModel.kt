@@ -39,7 +39,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     private val endpointTargetScheduler = EndpointTargetScheduler()
     private val endpointHttpChecker = EndpointHttpChecker()
     private val settingsStore = app.getSharedPreferences("tetherwatch_ping_settings", Context.MODE_PRIVATE)
-    private val appSettingsStore = app.getSharedPreferences("tetherwatch_app_settings", Context.MODE_PRIVATE)
+    private val appSettingsStore = app.getSharedPreferences(AppSettingsStorageKeys.STORE_NAME, Context.MODE_PRIVATE)
     private var probeSettings = loadProbeSettings()
     private var endpointSettings = loadEndpointSettings()
     private var appSettings = loadAppSettings()
@@ -147,9 +147,11 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     fun setAppSettings(settings: AppSettings) {
         appSettings = settings
         appSettingsStore.edit()
-            .putBoolean(AUTO_BACKGROUND_MONITORING_KEY, settings.autoBackgroundMonitoring)
-            .putBoolean(KEEP_SCREEN_ON_KEY, settings.keepScreenOn)
-            .putString(THEME_MODE_KEY, settings.themeMode.name)
+            .putBoolean(AppSettingsStorageKeys.AUTO_BACKGROUND_MONITORING_KEY, settings.autoBackgroundMonitoring)
+            .putBoolean(AppSettingsStorageKeys.KEEP_SCREEN_ON_KEY, settings.keepScreenOn)
+            .putString(AppSettingsStorageKeys.THEME_MODE_KEY, settings.themeMode.name)
+            .putBoolean(AppSettingsStorageKeys.PING_MONITORING_ENABLED_KEY, settings.pingMonitoringEnabled)
+            .putBoolean(AppSettingsStorageKeys.STATUS_MONITORING_ENABLED_KEY, settings.statusMonitoringEnabled)
             .apply()
         _state.value = _state.value.copy(appSettings = appSettings)
     }
@@ -203,7 +205,8 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
             averageLatencyMs = probe.summary.averageLatencyMs,
             packetLossPercent = probe.summary.packetLossPercent,
             jitterMs = probe.summary.jitterMs,
-            trafficStability = traffic.stability
+            trafficStability = traffic.stability,
+            pingMonitoringEnabled = appSettings.pingMonitoringEnabled
         )
 
         _state.value = DashboardState(
@@ -279,6 +282,11 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     private suspend fun runDueProbes() {
+        if (!appSettings.pingMonitoringEnabled) {
+            pingTargetScheduler.clear()
+            sample()
+            return
+        }
         val now = System.currentTimeMillis()
         pingTargetScheduler.dueTargets(probeSettings.targetSettings, now).forEach { targetSetting ->
             val target = targetSetting.target
@@ -292,6 +300,11 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     private suspend fun runDueEndpointChecks() {
+        if (!appSettings.statusMonitoringEnabled) {
+            endpointTargetScheduler.clear()
+            sample()
+            return
+        }
         val now = System.currentTimeMillis()
         endpointTargetScheduler.dueTargets(endpointSettings.targetSettings, now).forEach { targetSetting ->
             val result = checkEndpoint(targetSetting)
@@ -391,12 +404,19 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
 
     private fun loadAppSettings(): AppSettings {
         val themeMode = runCatching {
-            AppThemeMode.valueOf(appSettingsStore.getString(THEME_MODE_KEY, AppThemeMode.SYSTEM.name) ?: AppThemeMode.SYSTEM.name)
+            AppThemeMode.valueOf(
+                appSettingsStore.getString(
+                    AppSettingsStorageKeys.THEME_MODE_KEY,
+                    AppThemeMode.SYSTEM.name
+                ) ?: AppThemeMode.SYSTEM.name
+            )
         }.getOrDefault(AppThemeMode.SYSTEM)
         return AppSettings(
-            autoBackgroundMonitoring = appSettingsStore.getBoolean(AUTO_BACKGROUND_MONITORING_KEY, false),
-            keepScreenOn = appSettingsStore.getBoolean(KEEP_SCREEN_ON_KEY, false),
-            themeMode = themeMode
+            autoBackgroundMonitoring = appSettingsStore.getBoolean(AppSettingsStorageKeys.AUTO_BACKGROUND_MONITORING_KEY, false),
+            keepScreenOn = appSettingsStore.getBoolean(AppSettingsStorageKeys.KEEP_SCREEN_ON_KEY, false),
+            themeMode = themeMode,
+            pingMonitoringEnabled = appSettingsStore.getBoolean(AppSettingsStorageKeys.PING_MONITORING_ENABLED_KEY, true),
+            statusMonitoringEnabled = appSettingsStore.getBoolean(AppSettingsStorageKeys.STATUS_MONITORING_ENABLED_KEY, true)
         )
     }
 
@@ -487,8 +507,5 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         private const val ENDPOINT_TARGETS_KEY = "endpoint_targets"
         private const val ENDPOINT_TIMEOUT_MS_KEY = "endpoint_timeout_ms"
         private const val ENDPOINT_REDIRECT_LIMIT_KEY = "endpoint_redirect_limit"
-        private const val AUTO_BACKGROUND_MONITORING_KEY = "auto_background_monitoring"
-        private const val KEEP_SCREEN_ON_KEY = "keep_screen_on"
-        private const val THEME_MODE_KEY = "theme_mode"
     }
 }

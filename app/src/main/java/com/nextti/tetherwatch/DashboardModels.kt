@@ -17,8 +17,19 @@ data class DashboardState(
 data class AppSettings(
     val autoBackgroundMonitoring: Boolean = false,
     val keepScreenOn: Boolean = false,
-    val themeMode: AppThemeMode = AppThemeMode.SYSTEM
+    val themeMode: AppThemeMode = AppThemeMode.SYSTEM,
+    val pingMonitoringEnabled: Boolean = true,
+    val statusMonitoringEnabled: Boolean = true
 )
+
+object AppSettingsStorageKeys {
+    const val STORE_NAME = "tetherwatch_app_settings"
+    const val AUTO_BACKGROUND_MONITORING_KEY = "auto_background_monitoring"
+    const val KEEP_SCREEN_ON_KEY = "keep_screen_on"
+    const val THEME_MODE_KEY = "theme_mode"
+    const val PING_MONITORING_ENABLED_KEY = "ping_monitoring_enabled"
+    const val STATUS_MONITORING_ENABLED_KEY = "status_monitoring_enabled"
+}
 
 enum class AppThemeMode {
     SYSTEM,

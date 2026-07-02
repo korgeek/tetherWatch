@@ -157,6 +157,7 @@ It keeps tethering state, active network type, DNS resolver IPs, live traffic, r
 [x] Show tethering state and available client count in the compact top header
 [x] Remove the separate Tether summary card; tethering state remains in the compact top header
 [x] Hide unknown tethering client count instead of showing a confusing question mark
+[x] Show tethering On/Off in the compact top header and suppress the Off client count
 [x] Remove developer-facing client-list unavailable warning from the dashboard
 [x] Verify hotspot ON screen shows Active / Wi-Fi / swlan0 on Galaxy SM-A546E
 [ ] Re-run ADB inspection with hotspot on and one connected client
@@ -205,6 +206,9 @@ It keeps tethering state, active network type, DNS resolver IPs, live traffic, r
 [x] Add slow Ping threshold setting with 1000 ms default, 100-3000 ms range, and 100 ms steps
 [x] Color Ping console lines: normal green, slow response yellow, error/unreachable red
 [x] Remove visible Ping loss text from the dashboard while keeping loss available for internal health scoring
+[x] Add compact dashboard toggles to pause/resume Ping and Status monitoring independently
+[x] Gray out Ping and Status console surfaces when their dashboard toggle is off
+[x] Exclude Ping, Loss, and Jitter from health score and gray their hero lamps when Ping monitoring is off
 [x] Rename Endpoint console card to Status
 [x] Use HEAD for Endpoint checks and fallback to GET when HEAD is 405 or returns a non-normal HTTP status
 [x] Use GET directly for OpenAI and Claude status API endpoints
@@ -392,4 +396,9 @@ It keeps tethering state, active network type, DNS resolver IPs, live traffic, r
 [x] 2026-07-02 Galaxy SM-A546E screenshot smoke: score factor indicators show tiny tinted donut rings instead of flat color dots; saved at /private/tmp/tetherwatch-score-mini-donuts-tinted.png
 [x] 2026-07-02 Traffic graph 60-second window: replace last-12-sample timeline with fixed 60s x-axis, active/idle label, minimum 0.25 Mbps axis, and no cumulative relative layer ./gradlew :app:testDebugUnitTest :app:assembleDebug
 [x] 2026-07-02 Galaxy SM-A546E screenshot smoke: hero traffic graph shows 60s->now axis, active seconds label, readable 60s/Session totals, and no cumulative layer; saved at /private/tmp/tetherwatch-traffic-60s-window-session.png
+[x] 2026-07-02 Tethering header On/Off color and Off count suppression ./gradlew :app:testDebugUnitTest :app:assembleDebug
+[x] 2026-07-02 Ping/Status compact dashboard toggles with foreground-service pause support ./gradlew :app:testDebugUnitTest :app:assembleDebug
+[x] 2026-07-02 Galaxy SM-A546E screenshot smoke: Ping and Status panels show compact green toggles beside Jitter/status.json; saved at /private/tmp/tetherwatch-ping-status-toggles.png
+[x] 2026-07-02 Ping/Status toggle-off console gray state ./gradlew :app:testDebugUnitTest :app:assembleDebug
+[x] 2026-07-02 Ping-off score behavior: exclude Ping/Loss/Jitter inputs and gray disabled hero lamps ./gradlew :app:testDebugUnitTest :app:assembleDebug
 ```

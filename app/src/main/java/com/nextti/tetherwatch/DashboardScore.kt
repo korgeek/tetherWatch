@@ -17,7 +17,8 @@ data class DashboardScore(
 data class ScoreBreakdown(
     val label: String,
     val value: Int,
-    val max: Int
+    val max: Int,
+    val enabled: Boolean = true
 )
 
 object DashboardScoreCalculator {
@@ -27,9 +28,10 @@ object DashboardScoreCalculator {
         averageLatencyMs: Long?,
         packetLossPercent: Int,
         jitterMs: Long?,
-        trafficStability: TrafficStability
+        trafficStability: TrafficStability,
+        pingMonitoringEnabled: Boolean = true
     ): DashboardScore {
-        if (!isConnected || !isValidated && packetLossPercent == 100) {
+        if (!isConnected || (pingMonitoringEnabled && !isValidated && packetLossPercent == 100)) {
             return DashboardScore(0, DashboardHealth.OFFLINE, emptyBreakdown())
         }
 
@@ -65,13 +67,19 @@ object DashboardScoreCalculator {
 
         val breakdown = listOf(
             ScoreBreakdown("LINK", linkScore, 35),
-            ScoreBreakdown("LAT", latencyScore, 25),
-            ScoreBreakdown("LOSS", lossScore, 20),
-            ScoreBreakdown("JIT", jitterScore, 10),
+            ScoreBreakdown("LAT", if (pingMonitoringEnabled) latencyScore else 0, 25, enabled = pingMonitoringEnabled),
+            ScoreBreakdown("LOSS", if (pingMonitoringEnabled) lossScore else 0, 20, enabled = pingMonitoringEnabled),
+            ScoreBreakdown("JIT", if (pingMonitoringEnabled) jitterScore else 0, 10, enabled = pingMonitoringEnabled),
             ScoreBreakdown("FLOW", flowScore, 10)
         )
-        val score = breakdown.sumOf { it.value }
-        val value = score.coerceIn(0, 100)
+        val enabledBreakdown = breakdown.filter { it.enabled }
+        val score = enabledBreakdown.sumOf { it.value }
+        val maxScore = enabledBreakdown.sumOf { it.max }
+        val value = if (maxScore <= 0) {
+            0
+        } else {
+            ((score.toDouble() / maxScore.toDouble()) * 100.0).toInt().coerceIn(0, 100)
+        }
         val health = when (value) {
             0 -> DashboardHealth.OFFLINE
             in 90..100 -> DashboardHealth.EXCELLENT

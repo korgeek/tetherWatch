@@ -47,6 +47,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.draw.clip
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -434,8 +435,18 @@ private fun TetherDashboardScreen(
                         TopStatusHeader(visual)
                         HeroPanel(visual.hero, state.score, state.traffic)
                         StatusTileGrid(visual.tiles)
-                        ProbePanel(state = state)
-                        EndpointPanel(state = state)
+                        ProbePanel(
+                            state = state,
+                            onPingMonitoringEnabledChanged = { enabled ->
+                                onAppSettingsSaved(state.appSettings.copy(pingMonitoringEnabled = enabled))
+                            }
+                        )
+                        EndpointPanel(
+                            state = state,
+                            onStatusMonitoringEnabledChanged = { enabled ->
+                                onAppSettingsSaved(state.appSettings.copy(statusMonitoringEnabled = enabled))
+                            }
+                        )
                         AlertStrip(visual.alerts, onPermissionActionSelected)
                     }
                     Spacer(Modifier.height(16.dp))
@@ -702,7 +713,7 @@ private fun TopStatusHeader(visual: DashboardVisualModel) {
                     modifier = Modifier
                         .size(7.dp)
                         .background(
-                            if (visual.header.tetheringActive) Color(0xFF1F7A5C) else MaterialTheme.colorScheme.outline,
+                            if (visual.header.tetheringActive) Color(0xFF1F7A5C) else Color(0xFFC85B4A),
                             CircleShape
                         )
                 )
@@ -815,6 +826,11 @@ private fun ScoreBreakdownLampStrip(items: List<ScoreBreakdown>) {
 
 @Composable
 private fun ScoreBreakdownLampItem(item: ScoreBreakdown) {
+    val textColor = if (item.enabled) {
+        MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.72f)
+    } else {
+        disabledScoreBreakdownColor()
+    }
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -824,7 +840,7 @@ private fun ScoreBreakdownLampItem(item: ScoreBreakdown) {
             item.displayLabel(),
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.72f),
+            color = textColor,
             maxLines = 1
         )
     }
@@ -1040,7 +1056,10 @@ private fun MiniMeter(fraction: Float, color: Color) {
 }
 
 @Composable
-private fun ProbePanel(state: DashboardState) {
+private fun ProbePanel(
+    state: DashboardState,
+    onPingMonitoringEnabledChanged: (Boolean) -> Unit
+) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.surface,
@@ -1057,24 +1076,38 @@ private fun ProbePanel(state: DashboardState) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text("Ping", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                Text(
-                    "Jitter ${state.probe.summary.jitterMs ?: 0} ms",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(7.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "Jitter ${state.probe.summary.jitterMs ?: 0} ms",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    SmallMonitorToggle(
+                        checked = state.appSettings.pingMonitoringEnabled,
+                        onCheckedChange = onPingMonitoringEnabledChanged,
+                        contentDescription = "Toggle Ping monitoring"
+                    )
+                }
             }
             PingConsolePanel(
                 lines = state.probe.consoleLines,
-                settings = state.probeSettings
+                settings = state.probeSettings,
+                enabled = state.appSettings.pingMonitoringEnabled
             )
         }
     }
 }
 
 @Composable
-private fun EndpointPanel(state: DashboardState) {
+private fun EndpointPanel(
+    state: DashboardState,
+    onStatusMonitoringEnabledChanged: (Boolean) -> Unit
+) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.surface,
@@ -1091,19 +1124,58 @@ private fun EndpointPanel(state: DashboardState) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text("Status", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                Text(
-                    "status.json",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(7.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "status.json",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    SmallMonitorToggle(
+                        checked = state.appSettings.statusMonitoringEnabled,
+                        onCheckedChange = onStatusMonitoringEnabledChanged,
+                        contentDescription = "Toggle Status monitoring"
+                    )
+                }
             }
             EndpointConsolePanel(
                 lines = state.endpoint.consoleLines,
-                state = state
+                state = state,
+                enabled = state.appSettings.statusMonitoringEnabled
             )
         }
+    }
+}
+
+@Composable
+private fun SmallMonitorToggle(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    contentDescription: String
+) {
+    val trackColor = if (checked) Color(0xFF1F7A5C) else Color(0xFFC85B4A)
+    val knobAlignment = if (checked) Alignment.CenterEnd else Alignment.CenterStart
+    Box(
+        modifier = Modifier
+            .size(width = 32.dp, height = 18.dp)
+            .clip(CircleShape)
+            .background(trackColor.copy(alpha = 0.88f))
+            .clickable(
+                onClickLabel = contentDescription,
+                onClick = { onCheckedChange(!checked) }
+            )
+            .padding(2.dp),
+        contentAlignment = knobAlignment
+    ) {
+        Box(
+            modifier = Modifier
+                .size(14.dp)
+                .background(Color.White, CircleShape)
+        )
     }
 }
 
@@ -1560,14 +1632,14 @@ private fun ThemeModeRow(
 }
 
 @Composable
-private fun PingConsolePanel(lines: List<String>, settings: ProbeSettings) {
+private fun PingConsolePanel(lines: List<String>, settings: ProbeSettings, enabled: Boolean) {
     val visibleLines = lines.takeLast(settings.consoleLineCount)
     Surface(
         modifier = Modifier
             .fillMaxWidth()
             .height(consolePanelHeight(settings.consoleFontSizeSp, settings.consoleLineCount)),
-        color = Color(0xFF050906),
-        contentColor = Color(0xFF5DFF89),
+        color = consoleBackgroundColor(enabled),
+        contentColor = if (enabled) Color(0xFF5DFF89) else disabledConsoleLineColor(),
         shape = RoundedCornerShape(10.dp)
     ) {
         Column(
@@ -1576,11 +1648,11 @@ private fun PingConsolePanel(lines: List<String>, settings: ProbeSettings) {
         ) {
             if (visibleLines.isEmpty()) {
                 Text(
-                    "waiting for reply...",
+                    if (enabled) "waiting for reply..." else "ping paused",
                     fontFamily = FontFamily.Monospace,
                     fontSize = settings.consoleFontSizeSp.sp,
                     lineHeight = (settings.consoleFontSizeSp + 1).sp,
-                    color = Color(0xFF5DFF89)
+                    color = if (enabled) Color(0xFF5DFF89) else disabledConsoleLineColor()
                 )
             } else {
                 visibleLines.forEach { line ->
@@ -1589,7 +1661,11 @@ private fun PingConsolePanel(lines: List<String>, settings: ProbeSettings) {
                         fontFamily = FontFamily.Monospace,
                         fontSize = settings.consoleFontSizeSp.sp,
                         lineHeight = (settings.consoleFontSizeSp + 1).sp,
-                        color = pingConsoleLineColor(line, settings.slowResponseThresholdMs),
+                        color = if (enabled) {
+                            pingConsoleLineColor(line, settings.slowResponseThresholdMs)
+                        } else {
+                            disabledConsoleLineColor()
+                        },
                         maxLines = 1,
                         overflow = TextOverflow.Clip,
                         softWrap = false
@@ -1609,14 +1685,14 @@ private fun pingConsoleLineColor(line: String, slowResponseThresholdMs: Int): Co
 }
 
 @Composable
-private fun EndpointConsolePanel(lines: List<String>, state: DashboardState) {
+private fun EndpointConsolePanel(lines: List<String>, state: DashboardState, enabled: Boolean) {
     val visibleLines = lines.takeLast(state.probeSettings.consoleLineCount)
     Surface(
         modifier = Modifier
             .fillMaxWidth()
             .height(consolePanelHeight(state.probeSettings.consoleFontSizeSp, state.probeSettings.consoleLineCount)),
-        color = Color(0xFF050906),
-        contentColor = Color(0xFF5DFF89),
+        color = consoleBackgroundColor(enabled),
+        contentColor = if (enabled) Color(0xFF5DFF89) else disabledConsoleLineColor(),
         shape = RoundedCornerShape(10.dp)
     ) {
         Column(
@@ -1625,11 +1701,11 @@ private fun EndpointConsolePanel(lines: List<String>, state: DashboardState) {
         ) {
             if (visibleLines.isEmpty()) {
                 Text(
-                    "waiting for status...",
+                    if (enabled) "waiting for status..." else "status paused",
                     fontFamily = FontFamily.Monospace,
                     fontSize = state.probeSettings.consoleFontSizeSp.sp,
                     lineHeight = (state.probeSettings.consoleFontSizeSp + 1).sp,
-                    color = Color(0xFF5DFF89)
+                    color = if (enabled) Color(0xFF5DFF89) else disabledConsoleLineColor()
                 )
             } else {
                 visibleLines.forEach { line ->
@@ -1638,7 +1714,7 @@ private fun EndpointConsolePanel(lines: List<String>, state: DashboardState) {
                         fontFamily = FontFamily.Monospace,
                         fontSize = state.probeSettings.consoleFontSizeSp.sp,
                         lineHeight = (state.probeSettings.consoleFontSizeSp + 1).sp,
-                        color = endpointConsoleLineColor(line),
+                        color = if (enabled) endpointConsoleLineColor(line) else disabledConsoleLineColor(),
                         maxLines = 1,
                         overflow = TextOverflow.Clip,
                         softWrap = false
@@ -1648,6 +1724,12 @@ private fun EndpointConsolePanel(lines: List<String>, state: DashboardState) {
         }
     }
 }
+
+private fun consoleBackgroundColor(enabled: Boolean): Color {
+    return if (enabled) Color(0xFF050906) else Color(0xFF3F454D)
+}
+
+private fun disabledConsoleLineColor(): Color = Color(0xFFC6CDD4)
 
 private fun consolePanelHeight(fontSizeSp: Int, lineCount: Int): Dp {
     val normalizedFontSize = PingConsoleFontOptions.normalize(fontSizeSp)
@@ -2168,6 +2250,7 @@ private fun DashboardHealth.tone(): TileColors = when (this) {
 }
 
 private fun ScoreBreakdown.scoreBreakdownLampColor(): Color {
+    if (!enabled) return disabledScoreBreakdownColor()
     val fraction = scoreBreakdownFraction()
     return when {
         fraction >= 0.8f -> Color(0xFF1F7A5C)
@@ -2177,8 +2260,10 @@ private fun ScoreBreakdown.scoreBreakdownLampColor(): Color {
 }
 
 private fun ScoreBreakdown.scoreBreakdownFraction(): Float {
-    return if (max <= 0) 0f else (value.toFloat() / max.toFloat()).coerceIn(0f, 1f)
+    return if (!enabled || max <= 0) 0f else (value.toFloat() / max.toFloat()).coerceIn(0f, 1f)
 }
+
+private fun disabledScoreBreakdownColor(): Color = Color(0xFF9AA3AD)
 
 private fun ScoreBreakdown.displayLabel(): String = when (label) {
     "LINK" -> "Net"

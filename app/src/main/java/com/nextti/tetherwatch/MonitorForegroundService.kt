@@ -94,15 +94,24 @@ class MonitorForegroundService : Service() {
                     previousTxBytes = txBytes
                     previousTimestamp = timestamp
 
+                    val appSettings = loadMonitorAppSettings()
                     val probeSettings = loadMonitorProbeSettings()
-                    pingTargetScheduler.dueTargets(probeSettings.targetSettings, timestamp).forEach { targetSetting ->
-                        pingTarget(targetSetting.target)
-                        pingTargetScheduler.markPingStarted(targetSetting, timestamp)
+                    if (appSettings.pingMonitoringEnabled) {
+                        pingTargetScheduler.dueTargets(probeSettings.targetSettings, timestamp).forEach { targetSetting ->
+                            pingTarget(targetSetting.target)
+                            pingTargetScheduler.markPingStarted(targetSetting, timestamp)
+                        }
+                    } else {
+                        pingTargetScheduler.clear()
                     }
                     val endpointSettings = loadMonitorEndpointSettings()
-                    endpointTargetScheduler.dueTargets(endpointSettings.targetSettings, timestamp).forEach { targetSetting ->
-                        endpointHttpChecker.check(targetSetting, endpointSettings)
-                        endpointTargetScheduler.markCheckStarted(targetSetting, timestamp)
+                    if (appSettings.statusMonitoringEnabled) {
+                        endpointTargetScheduler.dueTargets(endpointSettings.targetSettings, timestamp).forEach { targetSetting ->
+                            endpointHttpChecker.check(targetSetting, endpointSettings)
+                            endpointTargetScheduler.markCheckStarted(targetSetting, timestamp)
+                        }
+                    } else {
+                        endpointTargetScheduler.clear()
                     }
 
                     manager.notify(
@@ -149,6 +158,14 @@ class MonitorForegroundService : Service() {
             redirectLimit = EndpointRedirectOptions.normalize(
                 store.getInt(ENDPOINT_REDIRECT_LIMIT_KEY, EndpointRedirectOptions.DEFAULT_LIMIT)
             )
+        )
+    }
+
+    private fun loadMonitorAppSettings(): AppSettings {
+        val store = getSharedPreferences(AppSettingsStorageKeys.STORE_NAME, MODE_PRIVATE)
+        return AppSettings(
+            pingMonitoringEnabled = store.getBoolean(AppSettingsStorageKeys.PING_MONITORING_ENABLED_KEY, true),
+            statusMonitoringEnabled = store.getBoolean(AppSettingsStorageKeys.STATUS_MONITORING_ENABLED_KEY, true)
         )
     }
 
