@@ -163,6 +163,29 @@ Device list unavailable on this Android build
 
 ## Open Follow-Up
 
+### 2026-07-02 implementation smoke update
+
+After implementing the public `TetheringManager` callback model, the debug APK was installed on Galaxy SM-A546E and launched. With hotspot enabled, the app screen showed:
+
+```text
+Tether
+Active
+Wi-Fi / swlan0
+Device list unavailable on this Android build.
+```
+
+ADB agreed on the active tethering state:
+
+```text
+swlan0 - TetheredState - lastError = 0
+Upstream wanted: true
+Current upstream interface(s): [rmnet15]
+mCurrentConnectionCount=0, mLastMaxConnectionCount=0
+Client Information:
+```
+
+The active-client acceptance item is still pending because no client was connected during this smoke run.
+
 To complete the active-client acceptance criteria, rerun inspection while:
 
 1. Mobile data is on.

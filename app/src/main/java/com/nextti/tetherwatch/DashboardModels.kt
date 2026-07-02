@@ -5,7 +5,7 @@ data class DashboardState(
     val network: NetworkStateSnapshot = NetworkStateSnapshot(),
     val traffic: TrafficDashboard = TrafficDashboard(),
     val probe: ProbeDashboard = ProbeDashboard(),
-    val tethering: SimpleStatus = SimpleStatus("Tethering", "Checking..."),
+    val tethering: TetheringDashboard = TetheringDashboard(),
     val signal: SimpleStatus = SimpleStatus("Signal", "Permission denied. Data was not collected.", true),
     val permissions: List<PermissionStatus> = emptyList()
 )
@@ -65,3 +65,31 @@ data class PermissionStatus(
     val permission: String,
     val granted: Boolean
 )
+
+data class TetheringDashboard(
+    val state: TetheringState = TetheringState.UNAVAILABLE,
+    val types: Set<TetheringType> = emptySet(),
+    val downstreamInterfaces: List<String> = emptyList(),
+    val upstreamInterface: String? = null,
+    val lastError: String? = null,
+    val clientVisibility: TetheringClientVisibility = TetheringClientVisibility.UNKNOWN
+)
+
+enum class TetheringState {
+    UNAVAILABLE,
+    OFF,
+    ACTIVE,
+    RESTRICTED
+}
+
+enum class TetheringType {
+    WIFI,
+    USB,
+    BLUETOOTH,
+    OTHER
+}
+
+enum class TetheringClientVisibility {
+    UNKNOWN,
+    RESTRICTED
+}

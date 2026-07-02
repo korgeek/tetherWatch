@@ -106,20 +106,21 @@ object DashboardVisualModelBuilder {
                 ),
                 DashboardTileVisualModel(
                     label = "Tether",
-                    value = tetherValue(state.tethering.value),
-                    detail = state.tethering.value,
+                    value = tetherValue(state.tethering),
+                    detail = tetherDetail(state.tethering),
                     icon = DashboardTileIcon.TETHER,
-                    tone = if (state.tethering.value.contains("unavailable", ignoreCase = true)) {
-                        DashboardTileTone.WARN
-                    } else {
-                        DashboardTileTone.NEUTRAL
-                    }
+                    tone = tetherTone(state.tethering)
                 )
             ),
             alerts = buildList {
                 if (permissionsDenied) add(DashboardAlertVisualModel("Permission denied. Data was not collected.", DashboardTileTone.WARN))
                 if (!state.network.isValidated) add(DashboardAlertVisualModel("Internet validation failed.", DashboardTileTone.BAD))
                 if (loss > 0) add(DashboardAlertVisualModel("Probe loss $loss%.", DashboardTileTone.WARN))
+                if (state.tethering.state == TetheringState.ACTIVE &&
+                    state.tethering.clientVisibility == TetheringClientVisibility.RESTRICTED
+                ) {
+                    add(DashboardAlertVisualModel("Device list unavailable on this Android build.", DashboardTileTone.WARN))
+                }
             }
         )
     }
@@ -146,11 +147,47 @@ object DashboardVisualModelBuilder {
         }
     }
 
-    private fun tetherValue(value: String): String {
-        return when {
-            value.contains("unavailable", ignoreCase = true) -> "Off"
-            value.contains("available", ignoreCase = true) -> "Ready"
-            else -> "Check"
+    private fun tetherValue(tethering: TetheringDashboard): String {
+        return when (tethering.state) {
+            TetheringState.ACTIVE -> "Active"
+            TetheringState.OFF -> "Off"
+            TetheringState.RESTRICTED -> "Restricted"
+            TetheringState.UNAVAILABLE -> "Unavailable"
+        }
+    }
+
+    private fun tetherDetail(tethering: TetheringDashboard): String {
+        return when (tethering.state) {
+            TetheringState.ACTIVE -> {
+                val type = tethering.types.firstOrNull()?.label() ?: "Tether"
+                val downstream = tethering.downstreamInterfaces.firstOrNull()
+                when {
+                    downstream != null -> "$type / $downstream"
+                    tethering.upstreamInterface != null -> "Upstream ${tethering.upstreamInterface}"
+                    else -> "Clients: restricted"
+                }
+            }
+            TetheringState.OFF -> tethering.upstreamInterface?.let { "Upstream $it" } ?: "No tethered interface"
+            TetheringState.RESTRICTED -> "Clients: restricted"
+            TetheringState.UNAVAILABLE -> "Service unavailable"
+        }
+    }
+
+    private fun tetherTone(tethering: TetheringDashboard): DashboardTileTone {
+        return when (tethering.state) {
+            TetheringState.ACTIVE -> DashboardTileTone.GOOD
+            TetheringState.OFF -> DashboardTileTone.NEUTRAL
+            TetheringState.RESTRICTED -> DashboardTileTone.WARN
+            TetheringState.UNAVAILABLE -> DashboardTileTone.WARN
+        }
+    }
+
+    private fun TetheringType.label(): String {
+        return when (this) {
+            TetheringType.WIFI -> "Wi-Fi"
+            TetheringType.USB -> "USB"
+            TetheringType.BLUETOOTH -> "Bluetooth"
+            TetheringType.OTHER -> "Tether"
         }
     }
 }

@@ -47,6 +47,9 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         override fun onCapabilitiesChanged(network: Network, networkCapabilities: NetworkCapabilities) = refreshNow()
         override fun onLinkPropertiesChanged(network: Network, linkProperties: android.net.LinkProperties) = refreshNow()
     }
+    private val tetheringMonitor = TetheringMonitor(app, connectivity) {
+        refreshNow()
+    }
 
     init {
         connectivity.registerDefaultNetworkCallback(networkCallback)
@@ -67,6 +70,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
 
     override fun onCleared() {
         connectivity.unregisterNetworkCallback(networkCallback)
+        tetheringMonitor.close()
     }
 
     fun refreshNow() {
@@ -116,7 +120,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
             network = network,
             traffic = traffic,
             probe = probe,
-            tethering = readTethering(),
+            tethering = tetheringMonitor.snapshot(),
             signal = readSignal(),
             permissions = readPermissions()
         )
@@ -224,19 +228,6 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                 ProbePoint(it.targetId, it.latencyMs, it.success)
             }
         )
-    }
-
-    private fun readTethering(): SimpleStatus {
-        return try {
-            val service = if (Build.VERSION.SDK_INT >= 30) app.getSystemService("tethering") else null
-            if (service == null) {
-                SimpleStatus("Tethering", "Unavailable")
-            } else {
-                SimpleStatus("Tethering", "Tethering service available. Waiting for Galaxy callback validation.")
-            }
-        } catch (error: Exception) {
-            SimpleStatus("Tethering", "Unavailable")
-        }
     }
 
     private fun readSignal(): SimpleStatus {

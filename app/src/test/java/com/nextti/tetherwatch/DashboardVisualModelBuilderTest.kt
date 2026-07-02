@@ -25,7 +25,13 @@ class DashboardVisualModelBuilderTest {
             ),
             traffic = TrafficDashboard(downloadMbps = "12.40 Mbps", uploadMbps = "2.10 Mbps"),
             probe = ProbeDashboard(summary = ProbeSummary(42, 32, 60, 0, 8, 0)),
-            tethering = SimpleStatus("Tethering", "Tethering service available. Waiting for Galaxy callback validation."),
+            tethering = TetheringDashboard(
+                state = TetheringState.ACTIVE,
+                types = setOf(TetheringType.WIFI),
+                downstreamInterfaces = listOf("swlan0"),
+                upstreamInterface = "rmnet15",
+                clientVisibility = TetheringClientVisibility.RESTRICTED
+            ),
             permissions = listOf(PermissionStatus("Phone state", "android.permission.READ_PHONE_STATE", true))
         )
 
@@ -37,6 +43,9 @@ class DashboardVisualModelBuilderTest {
         assertEquals("ISP DNS", visual.tiles[2].value)
         assertEquals("12.40", visual.tiles[3].value)
         assertEquals("42 ms", visual.tiles[4].value)
+        assertEquals("Active", visual.tiles[5].value)
+        assertEquals("Wi-Fi / swlan0", visual.tiles[5].detail)
+        assertTrue(visual.alerts.any { it.message == "Device list unavailable on this Android build." })
         assertFalse(visual.tiles.any { it.value.contains("Permission denied") })
     }
 

@@ -79,11 +79,12 @@
 ```text
 [x] Build TetheringManager availability PoC
 [x] Inspect Galaxy SM-A546E tethering state and API limits with ADB
-[-] Show active tethering state
-[ ] Show tethering type when available
-[ ] Show upstream/downstream interface when available
-[ ] Show tethering error when available
+[x] Show active tethering state from public TetheringManager callback
+[x] Show tethering type when available
+[x] Show upstream/downstream interface when available
+[x] Show tethering error when available
 [-] Show full tethered client device list through public app API
+[x] Verify hotspot ON screen shows Active / Wi-Fi / swlan0 on Galaxy SM-A546E
 [ ] Re-run ADB inspection with hotspot on and one connected client
 ```
 
@@ -137,4 +138,8 @@
 [x] 2026-07-02 Material 3 cockpit dashboard ./gradlew :app:testDebugUnitTest
 [x] 2026-07-02 Material 3 cockpit dashboard ./gradlew :app:assembleDebug
 [x] 2026-07-02 Galaxy SM-A546E tethering device-info inspection via ADB and API 36.1 android.jar
+[x] 2026-07-02 Tethering dashboard callback model ./gradlew :app:testDebugUnitTest
+[x] 2026-07-02 Tethering dashboard callback model ./gradlew :app:assembleDebug
+[x] 2026-07-02 Galaxy SM-A546E install/launch smoke: Tether tile Active / Wi-Fi / swlan0 with hotspot ON
+[-] 2026-07-02 Galaxy SM-A546E connected-client smoke: hotspot ON but mCurrentConnectionCount=0 and ip neigh empty
 ```
