@@ -9,7 +9,10 @@ import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.TrafficStats
 import android.os.Build
+import android.telephony.TelephonyCallback
+import android.telephony.TelephonyDisplayInfo
 import android.telephony.TelephonyManager
+import android.util.Log
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -20,11 +23,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.net.HttpURLConnection
-import java.net.InetSocketAddress
-import java.net.Socket
-import java.net.URL
 import java.util.Locale
+import java.util.concurrent.TimeUnit
 import kotlin.math.max
 
 class DashboardViewModel(application: Application) : AndroidViewModel(application) {
@@ -33,7 +33,26 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     private val trafficTracker = TrafficBucketTracker()
     private val trafficSampleHistory = TrafficSampleHistory()
     private val probeResults = ArrayDeque<ProbeResult>()
-    private val _state = MutableStateFlow(DashboardState())
+    private val pingConsole = PingConsoleBuffer()
+    private val endpointConsole = PingConsoleBuffer()
+    private val pingTargetScheduler = PingTargetScheduler()
+    private val endpointTargetScheduler = EndpointTargetScheduler()
+    private val endpointHttpChecker = EndpointHttpChecker()
+    private val settingsStore = app.getSharedPreferences("tetherwatch_ping_settings", Context.MODE_PRIVATE)
+    private val appSettingsStore = app.getSharedPreferences("tetherwatch_app_settings", Context.MODE_PRIVATE)
+    private var probeSettings = loadProbeSettings()
+    private var endpointSettings = loadEndpointSettings()
+    private var appSettings = loadAppSettings()
+    private var displayNetworkType = TelephonyManager.NETWORK_TYPE_UNKNOWN
+    private var displayNetworkTypeOverride = TelephonyDisplayInfo.OVERRIDE_NETWORK_TYPE_NONE
+    private var registeredDisplaySubId: Int? = null
+    private val _state = MutableStateFlow(
+        DashboardState(
+            probeSettings = probeSettings,
+            endpointSettings = endpointSettings,
+            appSettings = appSettings
+        )
+    )
     val state: StateFlow<DashboardState> = _state.asStateFlow()
 
     private var initialRxBytes = TrafficStats.getTotalRxBytes()
@@ -41,7 +60,6 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     private var previousRxBytes = initialRxBytes
     private var previousTxBytes = initialTxBytes
     private var previousTimestamp = System.currentTimeMillis()
-    private var probeSettings = ProbeSettings()
 
     private val networkCallback = object : ConnectivityManager.NetworkCallback() {
         override fun onAvailable(network: Network) = refreshNow()
@@ -51,6 +69,13 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     }
     private val tetheringMonitor = TetheringMonitor(app, connectivity) {
         refreshNow()
+    }
+    private val telephonyDisplayCallback = object : TelephonyCallback(), TelephonyCallback.DisplayInfoListener {
+        override fun onDisplayInfoChanged(telephonyDisplayInfo: TelephonyDisplayInfo) {
+            displayNetworkType = telephonyDisplayInfo.networkType
+            displayNetworkTypeOverride = telephonyDisplayInfo.overrideNetworkType
+            refreshNow()
+        }
     }
 
     init {
@@ -64,14 +89,16 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         }
         viewModelScope.launch {
             while (true) {
-                runProbes()
-                delay(probeSettings.intervalSeconds * 1_000L)
+                runDueProbes()
+                runDueEndpointChecks()
+                delay(1_000L)
             }
         }
     }
 
     override fun onCleared() {
         connectivity.unregisterNetworkCallback(networkCallback)
+        unregisterTelephonyDisplayCallback()
         tetheringMonitor.close()
     }
 
@@ -81,9 +108,50 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    fun setProbeIntervalSeconds(seconds: Int) {
-        probeSettings = ProbeSettings(ProbeIntervalOptions.normalize(seconds))
+    fun setPingSettings(settings: ProbeSettings) {
+        probeSettings = ProbeSettings(
+            targetSettings = PingTargetOptions.normalize(settings.targetSettings),
+            consoleFontSizeSp = PingConsoleFontOptions.normalize(settings.consoleFontSizeSp),
+            consoleLineCount = PingConsoleLineOptions.normalize(settings.consoleLineCount),
+            slowResponseThresholdMs = PingSlowResponseOptions.normalize(settings.slowResponseThresholdMs)
+        )
+        settingsStore.edit()
+            .putInt(PING_INTERVAL_SECONDS_KEY, probeSettings.intervalSeconds)
+            .putString(PING_TARGETS_KEY, PingTargetOptions.encodeSettingsText(probeSettings.targetSettings))
+            .putInt(PING_CONSOLE_FONT_SIZE_SP_KEY, probeSettings.consoleFontSizeSp)
+            .putInt(PING_CONSOLE_LINE_COUNT_KEY, probeSettings.consoleLineCount)
+            .putInt(PING_SLOW_RESPONSE_THRESHOLD_MS_KEY, probeSettings.slowResponseThresholdMs)
+            .apply()
+        probeResults.clear()
+        pingConsole.clear()
+        pingTargetScheduler.clear()
         refreshNow()
+    }
+
+    fun setEndpointSettings(settings: EndpointSettings) {
+        endpointSettings = EndpointSettings(
+            targetSettings = EndpointTargetOptions.normalize(settings.targetSettings),
+            timeoutMs = EndpointTimeoutOptions.normalize(settings.timeoutMs),
+            redirectLimit = EndpointRedirectOptions.normalize(settings.redirectLimit)
+        )
+        settingsStore.edit()
+            .putString(ENDPOINT_TARGETS_KEY, EndpointTargetOptions.encodeSettingsText(endpointSettings.targetSettings))
+            .putInt(ENDPOINT_TIMEOUT_MS_KEY, endpointSettings.timeoutMs)
+            .putInt(ENDPOINT_REDIRECT_LIMIT_KEY, endpointSettings.redirectLimit)
+            .apply()
+        endpointConsole.clear()
+        endpointTargetScheduler.clear()
+        refreshNow()
+    }
+
+    fun setAppSettings(settings: AppSettings) {
+        appSettings = settings
+        appSettingsStore.edit()
+            .putBoolean(AUTO_BACKGROUND_MONITORING_KEY, settings.autoBackgroundMonitoring)
+            .putBoolean(KEEP_SCREEN_ON_KEY, settings.keepScreenOn)
+            .putString(THEME_MODE_KEY, settings.themeMode.name)
+            .apply()
+        _state.value = _state.value.copy(appSettings = appSettings)
     }
 
     private suspend fun sample() {
@@ -105,6 +173,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
 
         val network = readNetworkState()
         val probe = readProbeDashboard()
+        val endpoint = readEndpointDashboard()
         val traffic = TrafficDashboard(
             downloadMbps = formatMbps(rxBps),
             uploadMbps = formatMbps(txBps),
@@ -129,8 +198,11 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
             network = network,
             traffic = traffic,
             probe = probe,
+            endpoint = endpoint,
             tethering = tetheringMonitor.snapshot(),
             probeSettings = probeSettings,
+            endpointSettings = endpointSettings,
+            appSettings = appSettings,
             signal = readSignal(),
             permissions = readPermissions()
         )
@@ -141,10 +213,11 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         val activeDataSubId = simSlots.firstOrNull { it.activeData }?.subscriptionId
         val telephony = app.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
         val activeTelephony = activeDataSubId?.let { telephony.createForSubscriptionId(it) } ?: telephony
+        ensureTelephonyDisplayCallback(activeDataSubId)
         val networkCountryIso = runCatching { activeTelephony.networkCountryIso }.getOrNull()
         val networkOperatorName = runCatching { activeTelephony.networkOperatorName }.getOrNull()
         val networkOperatorCode = runCatching { activeTelephony.networkOperator }.getOrNull()
-        val networkTypeLabel = runCatching { networkTypeName(activeTelephony.dataNetworkType) }
+        val networkTypeLabel = runCatching { displayAwareNetworkTypeName(activeTelephony) }
             .getOrNull()
             ?.takeUnless { it == "Unknown network" }
         val simCountryIso = simSlots.firstOrNull { it.activeData }?.countryIso
@@ -164,16 +237,22 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         val capabilities = connectivity.getNetworkCapabilities(network) ?: return base
         val link = connectivity.getLinkProperties(network)
         val dnsServers = link?.dnsServers?.map { it.hostAddress.orEmpty() }.orEmpty()
+        val ipAddresses = link?.linkAddresses
+            ?.mapNotNull { it.address.hostAddress }
+            ?.map { it.substringBefore('%') }
+            ?.filter { it.isNotBlank() && !it.startsWith("127.") && it != "::1" }
+            .orEmpty()
         return NetworkStateSnapshot(
             isConnected = true,
             isValidated = capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED),
             isMetered = connectivity.isActiveNetworkMetered,
             transports = listOfNotNull(
-                (networkTypeLabel ?: "5G/LTE").takeIf { capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) },
                 "Wi-Fi".takeIf { capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) },
+                (networkTypeLabel ?: "5G/LTE").takeIf { capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) },
                 "Ethernet".takeIf { capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) }
             ).ifEmpty { listOf("Other") },
             interfaceName = link?.interfaceName,
+            ipAddresses = ipAddresses,
             dnsServers = dnsServers,
             activeDataSubId = activeDataSubId,
             simSlots = simSlots,
@@ -186,44 +265,52 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         )
     }
 
-    private suspend fun runProbes() {
-        val targets = listOf(
-            "1.1.1.1" to "1.1.1.1",
-            "8.8.8.8" to "8.8.8.8"
-        )
-        targets.forEach { (label, host) ->
-            val result = tcpProbe(label, host, 53)
-            probeResults.addLast(result)
+    private suspend fun runDueProbes() {
+        val now = System.currentTimeMillis()
+        pingTargetScheduler.dueTargets(probeSettings.targetSettings, now).forEach { targetSetting ->
+            val target = targetSetting.target
+            val parsed = pingTarget(target)
+            pingConsole.add(parsed.consoleLine)
+            probeResults.addLast(parsed.result)
             while (probeResults.size > 60) probeResults.removeFirst()
+            pingTargetScheduler.markPingStarted(targetSetting, now)
         }
         sample()
     }
 
-    private suspend fun tcpProbe(label: String, host: String, port: Int): ProbeResult = withContext(Dispatchers.IO) {
-        val started = System.currentTimeMillis()
-        try {
-            Socket().use { socket ->
-                socket.connect(InetSocketAddress(host, port), 1_500)
-            }
-            ProbeResult(label, true, System.currentTimeMillis() - started, null)
-        } catch (error: Exception) {
-            httpsHeadProbe(label, host)
+    private suspend fun runDueEndpointChecks() {
+        val now = System.currentTimeMillis()
+        endpointTargetScheduler.dueTargets(endpointSettings.targetSettings, now).forEach { targetSetting ->
+            val result = checkEndpoint(targetSetting)
+            endpointConsole.add(EndpointCheckResultFormatter.consoleLine(result))
+            endpointTargetScheduler.markCheckStarted(targetSetting, now)
         }
+        sample()
     }
 
-    private fun httpsHeadProbe(label: String, host: String): ProbeResult {
-        val started = System.currentTimeMillis()
-        return try {
-            val connection = (URL("https://$host").openConnection() as HttpURLConnection).apply {
-                requestMethod = "HEAD"
-                connectTimeout = 1_500
-                readTimeout = 1_500
+    private suspend fun checkEndpoint(target: EndpointTargetSetting): EndpointCheckResult = withContext(Dispatchers.IO) {
+        endpointHttpChecker.check(target, endpointSettings)
+    }
+
+    private suspend fun pingTarget(target: String): ParsedPingOutput = withContext(Dispatchers.IO) {
+        try {
+            val process = ProcessBuilder(PING_COMMAND, "-c", "1", "-W", "2", target)
+                .redirectErrorStream(true)
+                .start()
+            val finished = process.waitFor(3, TimeUnit.SECONDS)
+            if (!finished) {
+                process.destroyForcibly()
             }
-            connection.responseCode
-            connection.disconnect()
-            ProbeResult(label, true, System.currentTimeMillis() - started, null)
+            val output = process.inputStream.bufferedReader().use { it.readText() }
+            val exitCode = if (finished) process.exitValue() else 1
+            val timeoutLine = if (finished) "" else "\nping: timeout waiting for $target"
+            PingCommandOutputParser.parse(target, exitCode, output + timeoutLine)
         } catch (error: Exception) {
-            ProbeResult(label, false, null, error.javaClass.simpleName)
+            PingCommandOutputParser.parse(
+                target = target,
+                exitCode = 127,
+                output = "ping: ${error.message ?: error.javaClass.simpleName}"
+            )
         }
     }
 
@@ -241,7 +328,57 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
             summary = ProbeSummaryCalculator.summarize(probeResults.toList()),
             history = probeResults.takeLast(16).map {
                 ProbePoint(it.targetId, it.latencyMs, it.success)
-            }
+            },
+            consoleLines = pingConsole.lines()
+        )
+    }
+
+    private fun readEndpointDashboard(): EndpointDashboard {
+        return EndpointDashboard(consoleLines = endpointConsole.lines())
+    }
+
+    private fun loadProbeSettings(): ProbeSettings {
+        val defaultInterval = settingsStore.getInt(PING_INTERVAL_SECONDS_KEY, ProbeIntervalOptions.DEFAULT_SECONDS)
+        val targetSettings = settingsStore.getString(PING_TARGETS_KEY, null)
+            ?.let { PingTargetOptions.parseSettingsText(it, defaultInterval) }
+            ?: PingTargetOptions.DEFAULT_TARGET_SETTINGS
+        return ProbeSettings(
+            targetSettings = PingTargetOptions.normalize(targetSettings),
+            consoleFontSizeSp = PingConsoleFontOptions.normalize(
+                settingsStore.getInt(PING_CONSOLE_FONT_SIZE_SP_KEY, PingConsoleFontOptions.DEFAULT_SP)
+            ),
+            consoleLineCount = PingConsoleLineOptions.normalize(
+                settingsStore.getInt(PING_CONSOLE_LINE_COUNT_KEY, PingConsoleLineOptions.DEFAULT_COUNT)
+            ),
+            slowResponseThresholdMs = PingSlowResponseOptions.normalize(
+                settingsStore.getInt(PING_SLOW_RESPONSE_THRESHOLD_MS_KEY, PingSlowResponseOptions.DEFAULT_MS)
+            )
+        )
+    }
+
+    private fun loadEndpointSettings(): EndpointSettings {
+        val targetSettings = settingsStore.getString(ENDPOINT_TARGETS_KEY, null)
+            ?.let { EndpointTargetOptions.parseSettingsText(it) }
+            ?: EndpointTargetOptions.DEFAULT_TARGET_SETTINGS
+        return EndpointSettings(
+            targetSettings = EndpointTargetOptions.migrateLegacyDefaultSettings(targetSettings),
+            timeoutMs = EndpointTimeoutOptions.normalize(
+                settingsStore.getInt(ENDPOINT_TIMEOUT_MS_KEY, EndpointTimeoutOptions.DEFAULT_MS)
+            ),
+            redirectLimit = EndpointRedirectOptions.normalize(
+                settingsStore.getInt(ENDPOINT_REDIRECT_LIMIT_KEY, EndpointRedirectOptions.DEFAULT_LIMIT)
+            )
+        )
+    }
+
+    private fun loadAppSettings(): AppSettings {
+        val themeMode = runCatching {
+            AppThemeMode.valueOf(appSettingsStore.getString(THEME_MODE_KEY, AppThemeMode.SYSTEM.name) ?: AppThemeMode.SYSTEM.name)
+        }.getOrDefault(AppThemeMode.SYSTEM)
+        return AppSettings(
+            autoBackgroundMonitoring = appSettingsStore.getBoolean(AUTO_BACKGROUND_MONITORING_KEY, false),
+            keepScreenOn = appSettingsStore.getBoolean(KEEP_SCREEN_ON_KEY, false),
+            themeMode = themeMode
         )
     }
 
@@ -255,7 +392,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                 title = "Signal",
                 value = listOf(
                     telephony.networkOperatorName.ifBlank { "Unknown carrier" },
-                    networkTypeName(telephony.dataNetworkType)
+                    displayAwareNetworkTypeName(telephony)
                 ).joinToString(" / ")
             )
         } catch (error: SecurityException) {
@@ -277,14 +414,33 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         return ContextCompat.checkSelfPermission(app, permission) == PackageManager.PERMISSION_GRANTED
     }
 
-    private fun networkTypeName(type: Int): String = when (type) {
-        TelephonyManager.NETWORK_TYPE_NR -> "5G"
-        TelephonyManager.NETWORK_TYPE_LTE -> "LTE"
-        TelephonyManager.NETWORK_TYPE_HSPAP,
-        TelephonyManager.NETWORK_TYPE_UMTS -> "3G"
-        TelephonyManager.NETWORK_TYPE_EDGE,
-        TelephonyManager.NETWORK_TYPE_GPRS -> "2G"
-        else -> "Unknown network"
+    private fun displayAwareNetworkTypeName(telephony: TelephonyManager): String {
+        val fallbackType = telephony.dataNetworkType
+        val networkType = displayNetworkType.takeUnless { it == TelephonyManager.NETWORK_TYPE_UNKNOWN } ?: fallbackType
+        return NetworkTypeDisplayName.label(networkType, displayNetworkTypeOverride)
+    }
+
+    private fun ensureTelephonyDisplayCallback(subscriptionId: Int?) {
+        if (registeredDisplaySubId == subscriptionId) return
+        unregisterTelephonyDisplayCallback()
+        val telephony = app.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+        val displayTelephony = subscriptionId?.let { telephony.createForSubscriptionId(it) } ?: telephony
+        runCatching {
+            displayTelephony.registerTelephonyCallback(app.mainExecutor, telephonyDisplayCallback)
+            registeredDisplaySubId = subscriptionId
+        }.onFailure { error ->
+            Log.w(TAG, "Unable to register telephony display callback.", error)
+        }
+    }
+
+    private fun unregisterTelephonyDisplayCallback() {
+        val telephony = app.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+        runCatching {
+            telephony.unregisterTelephonyCallback(telephonyDisplayCallback)
+            registeredDisplaySubId = null
+        }.onFailure { error ->
+            Log.w(TAG, "Unable to unregister telephony display callback.", error)
+        }
     }
 
     private fun formatMbps(bytesPerSecond: Double): String {
@@ -300,5 +456,21 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
             unit += 1
         }
         return String.format(Locale.US, "%.1f %s", value, units[unit])
+    }
+
+    companion object {
+        private const val TAG = "TetherWatchDashboard"
+        private const val PING_COMMAND = "/system/bin/ping"
+        private const val PING_INTERVAL_SECONDS_KEY = "interval_seconds"
+        private const val PING_TARGETS_KEY = "targets"
+        private const val PING_CONSOLE_FONT_SIZE_SP_KEY = "console_font_size_sp"
+        private const val PING_CONSOLE_LINE_COUNT_KEY = "console_line_count"
+        private const val PING_SLOW_RESPONSE_THRESHOLD_MS_KEY = "slow_response_threshold_ms"
+        private const val ENDPOINT_TARGETS_KEY = "endpoint_targets"
+        private const val ENDPOINT_TIMEOUT_MS_KEY = "endpoint_timeout_ms"
+        private const val ENDPOINT_REDIRECT_LIMIT_KEY = "endpoint_redirect_limit"
+        private const val AUTO_BACKGROUND_MONITORING_KEY = "auto_background_monitoring"
+        private const val KEEP_SCREEN_ON_KEY = "keep_screen_on"
+        private const val THEME_MODE_KEY = "theme_mode"
     }
 }

@@ -41,7 +41,7 @@
 3. 핫스팟에 연결된 장비가 데이터를 과도하게 사용하는지 확인하기 어렵다.
 4. 현재 업로드/다운로드 속도와 데이터 사용량을 한눈에 보기 어렵다.
 5. 데이터가 순간적으로 몰렸는지, 시간대별로 안정적으로 흘렀는지 보기 어렵다.
-6. 1.1.1.1, 8.8.8.8 같은 주요 DNS/인터넷 대상까지 실제 응답성이 어떤지 지속적으로 확인하기 어렵다.
+6. 1.1.1.1, 8.8.8.8 같은 주요 인터넷 대상과 OpenAI/Claude/GitHub/Cloudflare 상태 페이지까지 실제 도달성과 응답성이 어떤지 지속적으로 확인하기 어렵다.
 7. 일반 네트워크 속도 측정 앱은 테더링 상태, 트래픽, 모바일 신호 상태를 통합적으로 제공하지 않는다.
 
 ### 1.4 핵심 사용자
@@ -65,12 +65,12 @@ TetherWatch는 다음 질문에 즉시 답할 수 있어야 한다.
 ```text
 1. 지금 인터넷은 정상인가?
 2. 지금 테더링은 켜져 있고 정상 동작 중인가?
-3. 1.1.1.1, 8.8.8.8, 사용자 지정 DNS/IP까지 응답시간은 얼마인가?
+3. 1.1.1.1, 8.8.8.8, 사용자 지정 IP까지 실제 ping 응답시간은 얼마인가?
 4. 패킷 손실률과 지터는 어떤가?
 5. 현재 다운로드/업로드 속도는 얼마인가?
 6. 오늘/이번 세션/이번 달 데이터 사용량은 얼마이고, 언제 많이 사용했는가?
 7. 모바일 신호 상태가 나쁜가?
-8. 지금 어느 네트워크 대상에서 응답성이 나쁜가?
+8. 지금 어느 네트워크 대상 또는 서비스 상태 페이지에서 문제가 보이는가?
 9. 연결된 장비 수를 추정할 수 있는가?
 10. 문제가 발생하면 어떤 원인이 가장 가능성이 높은가?
 ```
@@ -143,7 +143,7 @@ Kernel lineage string: android13-3-33470412 계열
 | Reactive State | Kotlin Flow / StateFlow |
 | Async | Kotlin Coroutines |
 | Local DB | MVP 제외. Room은 장기 히스토리가 필요할 때만 검토 |
-| Settings | DataStore. 로컬 설정값만 저장, cloud sync/backup 없음 |
+| Settings | SharedPreferences 기반 로컬 설정. cloud sync/backup 없음 |
 | Background | Foreground Service |
 | Notification | Android Notification Channel |
 | Network State | ConnectivityManager / NetworkCapabilities / LinkProperties |
@@ -216,8 +216,8 @@ TetherWatch
 ```text
 - 현재 네트워크 상태
 - 테더링 상태
-- 다중 대상 latency probe
-- DNS/TCP/HTTPS 상태 확인
+- 다중 대상 Ping 상태 확인
+- 주요 서비스 Statuspage API 도달성 및 상태 확인
 - 전체 업로드/다운로드 속도
 - 세션/일간/월간 데이터 사용량
 - 모바일 신호 상태
@@ -249,7 +249,8 @@ TetherWatch는 `VpnService` 기반 트래픽 가로채기, 패킷 파싱, 포트
 ```text
 - ConnectivityManager 기반 현재 네트워크 상태
 - TrafficStats/NetworkStatsManager 기반 전체 트래픽
-- Probe 기반 대상별 latency/availability
+- Ping 기반 대상별 latency/availability
+- Statuspage JSON 기반 서비스 상태 확인
 - TetheringManager 기반 테더링 상태
 ```
 
@@ -463,74 +464,70 @@ Last Event: Tethered interface changed
 
 ---
 
-# 7.4 Multi Target Probe Engine
+# 7.4 Ping and Status Monitoring
 
 ## 목적
 
-사용자가 지정한 DNS/IP/도메인에 대해 1초 또는 5초 간격으로 응답 상태를 측정하고 그래프로 표시한다.
+사용자가 지정한 IP에 대해 Android의 실제 `/system/bin/ping` 결과를 콘솔처럼 표시하고, 주요 서비스의 `status.json` 엔드포인트를 주기적으로 조회해 서비스 도달성과 상태를 함께 보여준다.
 
-## 기본 대상
+## Ping 기본 대상
 
 | Label | Target | 기본 Method |
 |---|---|---|
-| Cloudflare DNS | 1.1.1.1 | ICMP/TCP/DNS |
-| Cloudflare Secondary | 1.0.0.1 | ICMP/TCP/DNS |
-| Google DNS | 8.8.8.8 | ICMP/TCP/DNS |
-| Google Secondary | 8.8.4.4 | ICMP/TCP/DNS |
-| Quad9 | 9.9.9.9 | ICMP/TCP/DNS |
-| User Target | 사용자 입력 | 사용자 선택 |
+| Cloudflare | 1.1.1.1 | `/system/bin/ping` |
+| Google | 8.8.8.8 | `/system/bin/ping` |
+| User Target | 사용자 입력 IPv4 | `/system/bin/ping` |
 
-## Probe Method
+## Status 기본 대상
 
-| Method | 설명 | 사용 예시 |
-|---|---|---|
-| ICMP | 전통적인 ping | `1.1.1.1` |
-| TCP_CONNECT | 특정 포트 연결 시간 측정 | `1.1.1.1:53`, `google.com:443` |
-| DNS_RESOLVE | DNS 질의 성공/시간 측정 | `A google.com` |
-| HTTPS_HEAD | 실제 HTTPS 도달성 확인 | `https://example.com` |
+```text
+https://status.openai.com/api/v2/status.json
+https://status.claude.com/api/v2/status.json
+https://www.githubstatus.com/api/v2/status.json
+https://www.cloudflarestatus.com/api/v2/status.json
+```
+
+Status 응답은 Statuspage JSON의 `status.indicator`와 `status.description`을 우선 표시한다.
+
+```text
+none      = 정상, 초록색
+minor     = 주의, 노란색
+major     = 장애, 빨간색
+critical  = 심각, 빨간색
+network error / DNS / TLS / timeout / connection refused = 실패, 빨간색
+```
 
 ## 사용자 설정
 
 ```kotlin
-data class ProbeTarget(
-    val id: String,
-    val label: String,
-    val host: String,
-    val port: Int?,
-    val method: ProbeMethod,
-    val intervalMs: Long,
-    val timeoutMs: Long,
+data class PingTarget(
+    val ip: String,
+    val intervalSeconds: Int,
     val enabled: Boolean
 )
 
-enum class ProbeMethod {
-    ICMP,
-    TCP_CONNECT,
-    DNS_RESOLVE,
-    HTTPS_HEAD
-}
+data class StatusTarget(
+    val url: String,
+    val intervalSeconds: Int,
+    val timeoutSeconds: Int,
+    val enabled: Boolean
+)
 ```
 
 ## 측정 주기
 
-| Mode | Interval | 용도 |
-|---|---:|---|
-| Live Mode | 1초 | 실시간 진단 |
-| Normal Mode | 5초 | 기본 모니터링 |
-| Balanced Mode | 15초 | 배터리 절약 |
-| Background Mode | 30~60초 | 장기 감시 |
+Ping과 Status 대상은 각 row마다 개별 interval을 가진다. Ping interval은 1~255초 정수만 허용하고, Status timeout은 최대 5초로 제한한다. Status는 redirect를 따르지 않는다.
 
 ## 결과 데이터
 
 ```kotlin
 data class ProbeResult(
     val id: Long,
-    val targetId: String,
+    val target: String,
     val timestamp: Long,
     val success: Boolean,
     val latencyMs: Long?,
-    val errorType: ProbeErrorType?,
-    val resolvedIp: String?,
+    val errorType: String?,
     val networkType: NetworkType,
     val transport: TransportType
 )
@@ -539,19 +536,11 @@ data class ProbeResult(
 ## 계산 지표
 
 ```text
-- current latency
-- average latency
-- min latency
-- max latency
-- p50 latency
-- p95 latency
-- p99 latency
-- packet loss percentage
-- jitter
-- consecutive failures
-- availability percentage
-- DNS resolution time
-- TCP connect time
+- Ping console: 최근 N줄만 유지
+- Ping jitter
+- Ping slow threshold: 기본 1000ms, 100~3000ms, 100ms step
+- Status indicator / description
+- DNS/TLS/timeout/connection refused 같은 네트워크 오류 타입
 ```
 
 ## Jitter 계산 초안
@@ -1043,7 +1032,7 @@ TetherWatch는 설치 후 바로 쓰는 로컬 모니터링 앱이다.
 - 계정 로그인 없음
 - 서버 전송 없음
 - 기본 동작은 화면 표시용 세션 데이터 중심
-- DataStore는 사용자 설정값만 로컬 저장
+- SharedPreferences는 사용자 설정값만 로컬 저장
 - Room은 장기 히스토리 저장 요구가 생길 때만 검토
 ```
 
@@ -1052,8 +1041,10 @@ Room은 Android의 SQLite 래퍼 라이브러리이다. SQL 테이블을 Kotlin 
 ### 11.1 향후 Room 검토 시 테이블 후보
 
 ```text
-probe_targets
-probe_results
+ping_targets
+ping_results
+status_targets
+status_results
 traffic_samples
 network_events
 tethering_events
@@ -1065,26 +1056,22 @@ sessions
 settings
 ```
 
-### 11.2 probe_targets
+### 11.2 ping_targets
 
 ```sql
-CREATE TABLE probe_targets (
+CREATE TABLE ping_targets (
     id TEXT PRIMARY KEY,
-    label TEXT NOT NULL,
-    host TEXT NOT NULL,
-    port INTEGER,
-    method TEXT NOT NULL,
-    interval_ms INTEGER NOT NULL,
-    timeout_ms INTEGER NOT NULL,
+    ip TEXT NOT NULL,
+    interval_seconds INTEGER NOT NULL,
     enabled INTEGER NOT NULL,
     created_at INTEGER NOT NULL
 );
 ```
 
-### 11.3 probe_results
+### 11.3 ping_results
 
 ```sql
-CREATE TABLE probe_results (
+CREATE TABLE ping_results (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     target_id TEXT NOT NULL,
     timestamp INTEGER NOT NULL,
@@ -1097,7 +1084,20 @@ CREATE TABLE probe_results (
 );
 ```
 
-### 11.4 traffic_samples
+### 11.4 status_targets
+
+```sql
+CREATE TABLE status_targets (
+    id TEXT PRIMARY KEY,
+    url TEXT NOT NULL,
+    interval_seconds INTEGER NOT NULL,
+    timeout_seconds INTEGER NOT NULL,
+    enabled INTEGER NOT NULL,
+    created_at INTEGER NOT NULL
+);
+```
+
+### 11.5 traffic_samples
 
 ```sql
 CREATE TABLE traffic_samples (
@@ -1153,8 +1153,8 @@ MVP 기본값은 장기 저장 없음이다.
 | 데이터 | 기본 보관 기간 |
 |---|---:|
 | 화면 표시용 live samples | 앱 실행 세션 동안 |
-| 사용자 설정값 | 사용자가 삭제할 때까지 로컬 DataStore에만 저장 |
-| 장기 probe history | MVP 제외 |
+| 사용자 설정값 | 사용자가 삭제할 때까지 로컬 SharedPreferences에만 저장 |
+| 장기 Ping/Status history | MVP 제외 |
 | traffic raw samples | MVP 제외 |
 | flow metadata | 수집하지 않음 |
 | alert events | MVP 제외 |
@@ -1208,7 +1208,7 @@ Galaxy 전용 로컬 모니터링 앱을 목표로 하며, 개발 순서는 다�
 - Gradle/API 36 설정
 - Compose 기본 구조
 - 최소 MVVM 구조
-- DataStore는 로컬 설정 저장에만 사용
+- SharedPreferences는 로컬 설정 저장에만 사용
 - Room 제외
 - 권한 관리 구조
 - 공통 로깅/에러 처리
@@ -1224,15 +1224,16 @@ Galaxy 전용 로컬 모니터링 앱을 목표로 하며, 개발 순서는 다�
 - NetworkStateRepository 구현
 ```
 
-### Phase 3. Probe Engine
+### Phase 3. Ping and Status Engine
 
 ```text
-- ProbeTarget 관리
-- ICMP/TCP/DNS/HTTPS probe 구현
-- 1초/5초 scheduler
-- latency result 화면 상태 갱신
-- packet loss/jitter 계산
-- latency chart 구현
+- PingTarget 관리
+- 실제 /system/bin/ping 실행 및 최근 콘솔 라인 유지
+- StatusTarget 관리
+- status.json GET 조회 및 indicator/description 파싱
+- 대상별 interval scheduler
+- Ping jitter 계산
+- Status/Ping console 구현
 ```
 
 ### Phase 4. Traffic Monitor
@@ -1377,7 +1378,7 @@ Galaxy 전용 로컬 모니터링 앱을 목표로 하며, 개발 순서는 다�
 ### 16.3 성능 기준
 
 ```text
-- 1초 probe 모드에서 UI freeze 없어야 함
+- 1초 Ping interval에서도 UI freeze 없어야 함
 - 1시간 연속 모니터링 시 크래시 없어야 함
 - foreground notification 정상 유지
 - 장기 저장 데이터가 기본 생성되지 않음
@@ -1409,7 +1410,7 @@ Galaxy 전용 로컬 모니터링 앱을 목표로 하며, 개발 순서는 다�
 |---|---|---|
 | 테더링 장비별 사용량 정확도 | 일반 앱 권한으로 정확한 client별 사용량 확보 제한 | 추정값 표시, Knox 확장 검토 |
 | Foreground Service 정책 | Android 14+ 서비스 타입 요구 | manifest/service type 엄격 적용 |
-| 배터리 소모 | 1초 probe는 배터리 사용 증가 | Live/Normal/Balanced mode 제공 |
+| 배터리 소모 | 짧은 Ping interval은 배터리 사용 증가 | 대상별 interval 설정과 foreground notification으로 상태 명확화 |
 | Play Store 기기 제한 | Galaxy 전용 공개 배포는 기기 카탈로그/배포 정책 검토 필요 | 초기 APK/내부 배포 우선 |
 | 제조사별 차이 | 타 제조사는 지원 범위 밖 | Galaxy 실기기 다종 테스트 |
 
@@ -1423,11 +1424,11 @@ Galaxy 전용 로컬 모니터링 앱을 목표로 하며, 개발 순서는 다�
 [ ] Kotlin/Compose 프로젝트 생성
 [ ] minSdk/targetSdk/compileSdk 36 설정
 [ ] 패키지명 com.nextti.tetherwatch 확정
-[ ] DataStore 로컬 설정 구조
+[ ] SharedPreferences 로컬 설정 구조
 [ ] ConnectivityManager PoC
 [ ] TetheringManager PoC
 [ ] TrafficStats PoC
-[ ] 1초 probe scheduler PoC
+[ ] Ping/Status scheduler PoC
 [ ] Foreground Service PoC
 [ ] Galaxy Android 16 실기기 테스트
 ```

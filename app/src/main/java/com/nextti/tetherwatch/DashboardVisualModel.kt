@@ -20,7 +20,6 @@ data class HeroVisualModel(
     val score: Int,
     val healthLabel: String,
     val activeSimLabel: String,
-    val countryLabel: String,
     val downloadValue: String,
     val uploadValue: String
 )
@@ -38,7 +37,15 @@ data class DashboardTileVisualModel(
 
 data class DashboardAlertVisualModel(
     val message: String,
-    val tone: DashboardTileTone
+    val tone: DashboardTileTone,
+    val action: PermissionRecoveryAction? = null
+)
+
+data class PermissionRecoveryAction(
+    val permission: String,
+    val title: String,
+    val explanation: String,
+    val actionLabel: String
 )
 
 enum class DashboardTileIcon {
@@ -46,8 +53,7 @@ enum class DashboardTileIcon {
     NETWORK,
     DNS,
     TRAFFIC,
-    PROBE,
-    TETHER
+    PROBE
 }
 
 enum class DashboardTileTone {
@@ -61,17 +67,14 @@ object DashboardVisualModelBuilder {
     fun build(state: DashboardState): DashboardVisualModel {
         val activeSim = activeSim(state.network)
         val country = state.network.country
-        val probeAverage = state.probe.summary.averageLatencyMs
-        val loss = state.probe.summary.packetLossPercent
-        val permissionsDenied = state.permissions.any { !it.granted } ||
+        val deniedPermissions = state.permissions.filterNot { it.granted }
+        val phoneStateDenied = deniedPermissions.any { it.permission == PHONE_STATE_PERMISSION } ||
             state.network.simSlots.any { it.permissionDenied }
 
         return DashboardVisualModel(
             header = DashboardHeaderVisualModel(
-                networkTypeLabel = state.network.networkTypeLabel
-                    ?: state.network.transports.firstOrNull()
-                    ?: "Offline",
-                simProviderLabel = simProviderLabel(activeSim),
+                networkTypeLabel = headerNetworkTypeLabel(state.network),
+                simProviderLabel = headerConnectionDetail(state.network, activeSim),
                 countryCode = country.countryIso?.uppercase()?.ifBlank { "--" }?.take(2) ?: "--",
                 tetheringLabel = headerTetheringLabel(state.tethering),
                 clientCountLabel = state.tethering.clientCount?.toString()
@@ -81,10 +84,9 @@ object DashboardVisualModelBuilder {
             hero = HeroVisualModel(
                 score = state.score.value,
                 healthLabel = state.score.health.name.lowercase().replaceFirstChar { it.uppercase() },
-                activeSimLabel = activeSimLabel(activeSim),
-                countryLabel = country.countryLabel,
-                downloadValue = state.traffic.downloadMbps.metricNumber(),
-                uploadValue = state.traffic.uploadMbps.metricNumber()
+                activeSimLabel = heroNetworkLabel(state.network, activeSim),
+                downloadValue = state.traffic.downloadMbps,
+                uploadValue = state.traffic.uploadMbps
             ),
             tiles = listOf(
                 DashboardTileVisualModel(
@@ -93,19 +95,38 @@ object DashboardVisualModelBuilder {
                     detail = dnsDetail(state.network),
                     icon = DashboardTileIcon.DNS,
                     tone = if (state.network.dnsProfiles.isEmpty()) DashboardTileTone.WARN else DashboardTileTone.NEUTRAL
-                ),
-                DashboardTileVisualModel(
-                    label = "Tether",
-                    value = tetherValue(state.tethering),
-                    detail = tetherDetail(state.tethering),
-                    icon = DashboardTileIcon.TETHER,
-                    tone = tetherTone(state.tethering)
                 )
             ),
             alerts = buildList {
-                if (permissionsDenied) add(DashboardAlertVisualModel("Permission denied. Data was not collected.", DashboardTileTone.WARN))
+                if (phoneStateDenied) {
+                    add(
+                        DashboardAlertVisualModel(
+                            message = "Permission denied. Data was not collected.",
+                            tone = DashboardTileTone.WARN,
+                            action = PermissionRecoveryAction(
+                                permission = PHONE_STATE_PERMISSION,
+                                title = "Why TetherWatch needs phone state",
+                                explanation = "Used to read SIM, carrier, and network type for local tethering status. TetherWatch does not collect phone numbers, call logs, contacts, or upload this data.",
+                                actionLabel = "Allow phone state"
+                            )
+                        )
+                    )
+                }
+                if (deniedPermissions.any { it.permission == NOTIFICATION_PERMISSION }) {
+                    add(
+                        DashboardAlertVisualModel(
+                            message = "Monitoring notification disabled. Tap to review.",
+                            tone = DashboardTileTone.WARN,
+                            action = PermissionRecoveryAction(
+                                permission = NOTIFICATION_PERMISSION,
+                                title = "Why TetherWatch needs notifications",
+                                explanation = "Used to keep monitoring visible while TetherWatch samples network status in the background. This is not used for marketing or remote messages.",
+                                actionLabel = "Allow notifications"
+                            )
+                        )
+                    )
+                }
                 if (!state.network.isValidated) add(DashboardAlertVisualModel("Internet validation failed.", DashboardTileTone.BAD))
-                if (loss > 0) add(DashboardAlertVisualModel("Probe loss $loss%.", DashboardTileTone.WARN))
                 if (state.tethering.state == TetheringState.ACTIVE &&
                     state.tethering.clientVisibility == TetheringClientVisibility.RESTRICTED
                 ) {
@@ -128,6 +149,28 @@ object DashboardVisualModelBuilder {
         }
     }
 
+    private fun heroNetworkLabel(network: NetworkStateSnapshot, sim: SimSlotSnapshot?): String {
+        val address = network.ipAddresses.firstOrNull { it.count { char -> char == '.' } == 3 }
+            ?: network.ipAddresses.firstOrNull()
+        return address?.let { "IP $it" } ?: activeSimLabel(sim)
+    }
+
+    private fun headerNetworkTypeLabel(network: NetworkStateSnapshot): String {
+        return when {
+            network.transports.any { it.equals("Wi-Fi", ignoreCase = true) } -> "Wi-Fi"
+            !network.networkTypeLabel.isNullOrBlank() -> network.networkTypeLabel
+            else -> network.transports.firstOrNull() ?: "Offline"
+        }
+    }
+
+    private fun headerConnectionDetail(network: NetworkStateSnapshot, sim: SimSlotSnapshot?): String {
+        return if (network.transports.any { it.equals("Wi-Fi", ignoreCase = true) }) {
+            network.interfaceName?.takeIf { it.isNotBlank() } ?: "Connected"
+        } else {
+            simProviderLabel(sim)
+        }
+    }
+
     private fun simProviderLabel(sim: SimSlotSnapshot?): String {
         return when {
             sim == null -> "No SIM"
@@ -140,18 +183,17 @@ object DashboardVisualModelBuilder {
     }
 
     private fun dnsValue(network: NetworkStateSnapshot): String {
-        return network.dnsProfiles.firstOrNull()?.address
-            ?: network.dnsServers.firstOrNull()
-            ?: "No DNS"
+        return dnsAddresses(network).take(2).takeIf { it.isNotEmpty() }?.joinToString(" · ") ?: "No DNS"
     }
 
     private fun dnsDetail(network: NetworkStateSnapshot): String {
+        return ""
+    }
+
+    private fun dnsAddresses(network: NetworkStateSnapshot): List<String> {
         val addresses = network.dnsProfiles.map { it.address }.ifEmpty { network.dnsServers }
-        return when {
-            addresses.isEmpty() -> "No resolver"
-            addresses.size == 1 -> "1 resolver"
-            addresses.size == 2 -> addresses[1]
-            else -> "${addresses[1]} · +${addresses.size - 2}"
+        return addresses.sortedBy { address ->
+            if (address.count { char -> char == '.' } == 3) 0 else 1
         }
     }
 
@@ -164,49 +206,8 @@ object DashboardVisualModelBuilder {
         }
     }
 
-    private fun tetherValue(tethering: TetheringDashboard): String {
-        return when (tethering.state) {
-            TetheringState.ACTIVE -> "Active"
-            TetheringState.OFF -> "Off"
-            TetheringState.RESTRICTED -> "Restricted"
-            TetheringState.UNAVAILABLE -> "Unavailable"
-        }
-    }
-
-    private fun tetherDetail(tethering: TetheringDashboard): String {
-        return when (tethering.state) {
-            TetheringState.ACTIVE -> {
-                val type = tethering.types.firstOrNull()?.label() ?: "Tether"
-                val downstream = tethering.downstreamInterfaces.firstOrNull()
-                when {
-                    downstream != null -> "$type / $downstream"
-                    tethering.upstreamInterface != null -> "Upstream ${tethering.upstreamInterface}"
-                    else -> "Clients: restricted"
-                }
-            }
-            TetheringState.OFF -> tethering.upstreamInterface?.let { "Upstream $it" } ?: "No tethered interface"
-            TetheringState.RESTRICTED -> "Clients: restricted"
-            TetheringState.UNAVAILABLE -> "Service unavailable"
-        }
-    }
-
-    private fun tetherTone(tethering: TetheringDashboard): DashboardTileTone {
-        return when (tethering.state) {
-            TetheringState.ACTIVE -> DashboardTileTone.GOOD
-            TetheringState.OFF -> DashboardTileTone.NEUTRAL
-            TetheringState.RESTRICTED -> DashboardTileTone.WARN
-            TetheringState.UNAVAILABLE -> DashboardTileTone.WARN
-        }
-    }
-
-    private fun TetheringType.label(): String {
-        return when (this) {
-            TetheringType.WIFI -> "Wi-Fi"
-            TetheringType.USB -> "USB"
-            TetheringType.BLUETOOTH -> "Bluetooth"
-            TetheringType.OTHER -> "Tether"
-        }
-    }
+    private const val PHONE_STATE_PERMISSION = "android.permission.READ_PHONE_STATE"
+    private const val NOTIFICATION_PERMISSION = "android.permission.POST_NOTIFICATIONS"
 }
 
 fun String.metricNumber(): String = trim().substringBefore(" ").ifBlank { this }
