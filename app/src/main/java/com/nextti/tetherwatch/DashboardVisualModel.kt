@@ -21,7 +21,9 @@ data class DashboardTileVisualModel(
     val detail: String,
     val icon: DashboardTileIcon,
     val tone: DashboardTileTone,
-    val meterFraction: Float? = null
+    val meterFraction: Float? = null,
+    val downSeries: List<Double> = emptyList(),
+    val upSeries: List<Double> = emptyList()
 )
 
 data class DashboardAlertVisualModel(
@@ -81,7 +83,7 @@ object DashboardVisualModelBuilder {
                 DashboardTileVisualModel(
                     label = "DNS",
                     value = state.network.dnsProfiles.firstOrNull()?.providerLabel ?: "No DNS",
-                    detail = "${state.network.dnsProfiles.size} resolver${if (state.network.dnsProfiles.size == 1) "" else "s"}",
+                    detail = dnsDetail(state.network),
                     icon = DashboardTileIcon.DNS,
                     tone = if (state.network.dnsProfiles.isEmpty()) DashboardTileTone.WARN else DashboardTileTone.NEUTRAL
                 ),
@@ -90,7 +92,9 @@ object DashboardVisualModelBuilder {
                     value = state.traffic.downloadMbps.metricNumber(),
                     detail = "Down Mbps",
                     icon = DashboardTileIcon.TRAFFIC,
-                    tone = if (state.traffic.stability == TrafficStability.DROPPING) DashboardTileTone.WARN else DashboardTileTone.GOOD
+                    tone = if (state.traffic.stability == TrafficStability.DROPPING) DashboardTileTone.WARN else DashboardTileTone.GOOD,
+                    downSeries = state.traffic.samples.map { it.rxBps },
+                    upSeries = state.traffic.samples.map { it.txBps }
                 ),
                 DashboardTileVisualModel(
                     label = "Probe",
@@ -145,6 +149,14 @@ object DashboardVisualModelBuilder {
             sim.slotIndex >= 0 -> "SIM ${sim.slotIndex + 1}"
             else -> sim.displayName
         }
+    }
+
+    private fun dnsDetail(network: NetworkStateSnapshot): String {
+        val firstAddress = network.dnsProfiles.firstOrNull()?.address
+            ?: network.dnsServers.firstOrNull()
+            ?: return "No resolver"
+        val extraCount = (network.dnsProfiles.size.takeIf { it > 0 } ?: network.dnsServers.size) - 1
+        return if (extraCount > 0) "$firstAddress · +$extraCount" else firstAddress
     }
 
     private fun tetherValue(tethering: TetheringDashboard): String {

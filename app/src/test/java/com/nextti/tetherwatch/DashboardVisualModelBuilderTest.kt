@@ -21,9 +21,19 @@ class DashboardVisualModelBuilderTest {
                     SimSlotSnapshot(1, 22, "Carrier B", "SIM 2", "ID", true, false)
                 ),
                 country = NetworkCountrySnapshot("ID", "Indonesia", NetworkCountryConfidence.NETWORK_MCC),
-                dnsProfiles = listOf(DnsProfile("202.152.0.2", DnsResolverType.ISP, "ISP DNS", "Indonesia", DnsProfileConfidence.MEDIUM))
+                dnsProfiles = listOf(
+                    DnsProfile("202.152.0.2", DnsResolverType.ISP, "ISP DNS", "Indonesia", DnsProfileConfidence.MEDIUM),
+                    DnsProfile("10.19.19.20", DnsResolverType.PRIVATE, "Private DNS", "Private network", DnsProfileConfidence.HIGH)
+                )
             ),
-            traffic = TrafficDashboard(downloadMbps = "12.40 Mbps", uploadMbps = "2.10 Mbps"),
+            traffic = TrafficDashboard(
+                downloadMbps = "12.40 Mbps",
+                uploadMbps = "2.10 Mbps",
+                samples = listOf(
+                    TrafficSamplePoint(1_000L, 100.0, 20.0),
+                    TrafficSamplePoint(2_000L, 200.0, 40.0)
+                )
+            ),
             probe = ProbeDashboard(summary = ProbeSummary(42, 32, 60, 0, 8, 0)),
             tethering = TetheringDashboard(
                 state = TetheringState.ACTIVE,
@@ -41,7 +51,10 @@ class DashboardVisualModelBuilderTest {
         assertEquals("SIM 2", visual.tiles[0].value)
         assertEquals("Indonesia", visual.tiles[1].value)
         assertEquals("ISP DNS", visual.tiles[2].value)
+        assertEquals("202.152.0.2 · +1", visual.tiles[2].detail)
         assertEquals("12.40", visual.tiles[3].value)
+        assertEquals(listOf(100.0, 200.0), visual.tiles[3].downSeries)
+        assertEquals(listOf(20.0, 40.0), visual.tiles[3].upSeries)
         assertEquals("42 ms", visual.tiles[4].value)
         assertEquals("Active", visual.tiles[5].value)
         assertEquals("Wi-Fi / swlan0", visual.tiles[5].detail)

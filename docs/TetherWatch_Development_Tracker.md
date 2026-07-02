@@ -33,6 +33,8 @@
 [x] Replace placeholder UI with Compose
 [x] Add MVVM DashboardViewModel with StateFlow
 [x] Replace vertical card list with Material 3 cockpit dashboard
+[x] Apply Material safe-area layout for status/navigation bars
+[x] Set transparent system bars with readable dark status/navigation icons
 ```
 
 ## Traffic Monitor
@@ -49,6 +51,9 @@
 [x] Add traffic bar graph for minute-level throughput visibility
 [ ] Add clearer spike/drop markers in UI
 [x] Add compact traffic sparkline to first-screen chart band
+[x] Add second-level traffic sample history for hero and tile graphs
+[x] Show dual down/up traffic sparkline in hero panel
+[x] Show mini traffic graph inside Traffic tile
 ```
 
 ## Network State
@@ -63,6 +68,7 @@
 [x] Add active dual-SIM data slot snapshot
 [x] Classify DNS as ISP/private/public resolver without GeoIP calls
 [x] Infer network country from mobile network country before SIM fallback
+[x] Show first DNS resolver IP in compact DNS tile
 ```
 
 ## Permissions
@@ -142,4 +148,7 @@
 [x] 2026-07-02 Tethering dashboard callback model ./gradlew :app:assembleDebug
 [x] 2026-07-02 Galaxy SM-A546E install/launch smoke: Tether tile Active / Wi-Fi / swlan0 with hotspot ON
 [-] 2026-07-02 Galaxy SM-A546E connected-client smoke: hotspot ON but mCurrentConnectionCount=0 and ip neigh empty
+[x] 2026-07-02 Safe-area graph-first dashboard ./gradlew :app:testDebugUnitTest
+[x] 2026-07-02 Safe-area graph-first dashboard ./gradlew :app:assembleDebug
+[x] 2026-07-02 Galaxy SM-A546E safe-area screenshot smoke: top row below status bar, bottom buttons above navigation bar, hero/traffic graphs and DNS IP visible
 ```

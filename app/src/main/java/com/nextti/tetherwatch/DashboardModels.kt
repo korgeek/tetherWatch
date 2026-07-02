@@ -33,7 +33,14 @@ data class TrafficDashboard(
     val sessionUp: String = "0.0 B",
     val stability: TrafficStability = TrafficStability.IDLE,
     val buckets: List<TrafficBucket> = emptyList(),
+    val samples: List<TrafficSamplePoint> = emptyList(),
     val todayUsage: String = "Unavailable"
+)
+
+data class TrafficSamplePoint(
+    val timestampMs: Long,
+    val rxBps: Double,
+    val txBps: Double
 )
 
 data class ProbeDashboard(

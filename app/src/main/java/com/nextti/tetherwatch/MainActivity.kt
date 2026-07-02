@@ -6,24 +6,28 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import androidx.activity.SystemBarStyle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -34,6 +38,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.dynamicLightColorScheme
@@ -49,6 +54,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalInspectionMode
@@ -68,6 +74,16 @@ import com.patrykandpatrick.vico.compose.cartesian.rememberCartesianChart
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.light(
+                android.graphics.Color.TRANSPARENT,
+                android.graphics.Color.TRANSPARENT,
+            ),
+            navigationBarStyle = SystemBarStyle.light(
+                android.graphics.Color.TRANSPARENT,
+                android.graphics.Color.TRANSPARENT,
+            ),
+        )
         super.onCreate(savedInstanceState)
         setContent {
             TetherWatchTheme {
@@ -106,91 +122,123 @@ private fun TetherDashboardScreen(state: DashboardState) {
         ActivityResultContracts.RequestPermission()
     ) {}
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .verticalScroll(rememberScrollState())
-            .padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        TopStatusHeader(visual)
-        HeroPanel(visual.hero, state.score)
-        StatusTileGrid(visual.tiles)
-        ChartBand(state)
-        AlertStrip(visual.alerts)
-        ActionStrip(
-            onSettings = { context.startActivity(settingsIntent(context.packageName)) },
-            onPhonePermission = { permissionLauncher.launch(Manifest.permission.READ_PHONE_STATE) },
-            onMonitor = {
-                val intent = Intent(context, MonitorForegroundService::class.java)
-                if (Build.VERSION.SDK_INT >= 26) {
-                    ContextCompat.startForegroundService(context, intent)
-                } else {
-                    context.startService(intent)
+    Scaffold(
+        modifier = Modifier.fillMaxSize(),
+        containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets.safeDrawing,
+        bottomBar = {
+            ActionStrip(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.background)
+                    .navigationBarsPadding()
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                onSettings = { context.startActivity(settingsIntent(context.packageName)) },
+                onPhonePermission = { permissionLauncher.launch(Manifest.permission.READ_PHONE_STATE) },
+                onMonitor = {
+                    val intent = Intent(context, MonitorForegroundService::class.java)
+                    if (Build.VERSION.SDK_INT >= 26) {
+                        ContextCompat.startForegroundService(context, intent)
+                    } else {
+                        context.startService(intent)
+                    }
                 }
-            }
-        )
+            )
+        }
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(innerPadding)
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            TopStatusHeader(visual)
+            HeroPanel(visual.hero, state.score, state.traffic.samples)
+            StatusTileGrid(visual.tiles)
+            ChartBand(state)
+            AlertStrip(visual.alerts)
+            Spacer(Modifier.height(4.dp))
+        }
     }
 }
 
 @Composable
 private fun TopStatusHeader(visual: DashboardVisualModel) {
-    Row(
+    Surface(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+        color = MaterialTheme.colorScheme.background,
+        contentColor = MaterialTheme.colorScheme.onSurface
     ) {
-        Column {
-            Text("TetherWatch", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Row(
+            modifier = Modifier.padding(top = 4.dp, bottom = 2.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Text(
-                "${visual.hero.activeSimLabel} / ${visual.hero.countryLabel}",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodySmall,
+                "TetherWatch · ${visual.hero.activeSimLabel} · ${visual.hero.countryLabel}",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-        }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier
-                    .size(8.dp)
-                    .background(Color(0xFF1F7A5C), CircleShape)
-            )
-            Spacer(Modifier.width(6.dp))
-            Text("Live", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(7.dp)
+                        .background(Color(0xFF1F7A5C), CircleShape)
+                )
+                Spacer(Modifier.width(5.dp))
+                Text("Live", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold)
+            }
         }
     }
 }
 
 @Composable
-private fun HeroPanel(hero: HeroVisualModel, score: DashboardScore) {
+private fun HeroPanel(hero: HeroVisualModel, score: DashboardScore, samples: List<TrafficSamplePoint>) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.primaryContainer,
         contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-        shape = RoundedCornerShape(20.dp)
+        shape = RoundedCornerShape(18.dp)
     ) {
         Row(
-            modifier = Modifier.padding(14.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier.padding(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                ScoreRing(score.value, score.health)
-                Spacer(Modifier.width(12.dp))
-                Column {
-                    Text(hero.healthLabel, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Text(
-                        hero.countryLabel,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.74f)
-                    )
+            ScoreRing(score.value, score.health)
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(hero.healthLabel, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text(
+                            hero.countryLabel,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.74f)
+                        )
+                    }
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text("D ${hero.downloadValue}", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                        Text(
+                            "U ${hero.uploadValue}",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.78f)
+                        )
+                    }
                 }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                MetricPill("Down", hero.downloadValue)
-                MetricPill("Up", hero.uploadValue)
+                DualTrafficSparkline(
+                    samples = samples,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(46.dp)
+                )
             }
         }
     }
@@ -222,20 +270,6 @@ private fun ScoreRing(score: Int, health: DashboardHealth) {
             )
         }
         Text("$score", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-    }
-}
-
-@Composable
-private fun MetricPill(label: String, value: String) {
-    Surface(
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.56f),
-        contentColor = MaterialTheme.colorScheme.onSurface,
-        shape = RoundedCornerShape(12.dp)
-    ) {
-        Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
-            Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
-        }
     }
 }
 
@@ -295,6 +329,17 @@ private fun StatusTile(tile: DashboardTileVisualModel) {
                     overflow = TextOverflow.Ellipsis
                 )
                 tile.meterFraction?.let { MiniMeter(it, tone.accent) }
+            }
+            if (tile.downSeries.size >= 2 || tile.upSeries.size >= 2) {
+                DualLineChart(
+                    downValues = tile.downSeries,
+                    upValues = tile.upSeries,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(28.dp),
+                    downColor = Color(0xFF1F7A5C),
+                    upColor = Color(0xFF2F6DF6)
+                )
             }
         }
     }
@@ -379,11 +424,12 @@ private fun AlertStrip(alerts: List<DashboardAlertVisualModel>) {
 
 @Composable
 private fun ActionStrip(
+    modifier: Modifier = Modifier,
     onSettings: () -> Unit,
     onPhonePermission: () -> Unit,
     onMonitor: () -> Unit
 ) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Button(modifier = Modifier.weight(1f), onClick = onPhonePermission) {
             Text("SIM permission", maxLines = 1)
         }
@@ -394,6 +440,26 @@ private fun ActionStrip(
             Text("Settings", maxLines = 1)
         }
     }
+}
+
+@Composable
+private fun DualTrafficSparkline(samples: List<TrafficSamplePoint>, modifier: Modifier = Modifier) {
+    if (samples.size < 2) {
+        Box(
+            modifier = modifier.background(MaterialTheme.colorScheme.surface.copy(alpha = 0.38f), RoundedCornerShape(12.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text("Collecting", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.68f))
+        }
+        return
+    }
+    DualLineChart(
+        downValues = samples.map { it.rxBps },
+        upValues = samples.map { it.txBps },
+        modifier = modifier,
+        downColor = Color(0xFF1F7A5C),
+        upColor = Color(0xFF2F6DF6)
+    )
 }
 
 @Composable
@@ -463,6 +529,40 @@ private fun SimpleLineChart(values: List<Double>, color: Color, height: Dp) {
                 cap = StrokeCap.Round
             )
         }
+    }
+}
+
+@Composable
+private fun DualLineChart(
+    downValues: List<Double>,
+    upValues: List<Double>,
+    modifier: Modifier,
+    downColor: Color,
+    upColor: Color
+) {
+    val downFractions = GraphScale.fractions(downValues)
+    val upFractions = GraphScale.fractions(upValues)
+    Canvas(modifier = modifier) {
+        drawSeries(downFractions, downColor, 3.dp.toPx())
+        drawSeries(upFractions, upColor, 3.dp.toPx())
+    }
+}
+
+private fun DrawScope.drawSeries(
+    fractions: List<Float>,
+    color: Color,
+    strokeWidth: Float
+) {
+    if (fractions.size < 2) return
+    val step = size.width / fractions.lastIndex
+    fractions.zipWithNext().forEachIndexed { index, (start, end) ->
+        drawLine(
+            color = color,
+            start = Offset(index * step, size.height * (1f - start)),
+            end = Offset((index + 1) * step, size.height * (1f - end)),
+            strokeWidth = strokeWidth,
+            cap = StrokeCap.Round
+        )
     }
 }
 

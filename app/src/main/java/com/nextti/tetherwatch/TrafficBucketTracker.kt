@@ -98,3 +98,16 @@ class TrafficBucketTracker(
         const val IDLE_BPS = 1_024.0
     }
 }
+
+class TrafficSampleHistory(
+    private val maxSamples: Int = 45
+) {
+    private val samples = ArrayDeque<TrafficSamplePoint>()
+
+    fun add(sample: TrafficSamplePoint) {
+        samples.addLast(sample)
+        while (samples.size > maxSamples) samples.removeFirst()
+    }
+
+    fun samples(): List<TrafficSamplePoint> = samples.toList()
+}

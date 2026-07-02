@@ -31,6 +31,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     private val app = application
     private val connectivity = app.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
     private val trafficTracker = TrafficBucketTracker()
+    private val trafficSampleHistory = TrafficSampleHistory()
     private val probeResults = ArrayDeque<ProbeResult>()
     private val _state = MutableStateFlow(DashboardState())
     val state: StateFlow<DashboardState> = _state.asStateFlow()
@@ -90,6 +91,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         val txBps = txDelta / elapsedSeconds
 
         trafficTracker.addSample(timestamp, rxDelta, txDelta, rxBps, txBps)
+        trafficSampleHistory.add(TrafficSamplePoint(timestamp, rxBps, txBps))
 
         previousRxBytes = rxBytes
         previousTxBytes = txBytes
@@ -104,6 +106,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
             sessionUp = formatBytes(txBytes - initialTxBytes),
             stability = trafficTracker.stability(),
             buckets = trafficTracker.buckets().takeLast(8),
+            samples = trafficSampleHistory.samples(),
             todayUsage = "Unavailable"
         )
         val score = DashboardScoreCalculator.calculate(
