@@ -63,6 +63,16 @@ It keeps tethering state, active network type, DNS resolver IPs, live traffic, r
 [x] Increase ambient background motion with layered dynamic sweeps
 ```
 
+## Dashboard Health Score
+
+```text
+[x] Calculate weighted health score from link validation, ping latency, loss, jitter, and traffic flow
+[x] Expose readable score factors as Net, Ping, Loss, Jitter, and Flow
+[x] Replace clipped factor bars and numeric fractions with compact colored status lamps
+[x] Move score factor lamps to a horizontal strip at the bottom of the hero card
+[x] Replace flat score factor lamps with tiny donut indicators that show each factor's weighted fill
+```
+
 ## Traffic Monitor
 
 ```text
@@ -75,16 +85,21 @@ It keeps tethering state, active network type, DNS resolver IPs, live traffic, r
 [x] Add unit tests for bucket rollup and drop detection
 [-] Add NetworkStatsManager today/month usage lookup
 [x] Add traffic bar graph for minute-level throughput visibility
-[ ] Add clearer spike/drop markers in UI
+[x] Add clearer spike/drop markers in UI
 [x] Add compact traffic sparkline to first-screen chart band
 [x] Add second-level traffic sample history for hero and tile graphs
 [x] Show dual down/up traffic sparkline in hero panel
 [-] Show mini traffic graph inside Traffic tile
 [x] Move traffic graph to hero and remove redundant Traffic tile
 [x] Add visible Down/Up legend to the hero traffic graph
-[x] Add compact Kbps/Mbps axis labels and old/now index to the hero traffic graph
+[x] Add compact Mbps axis labels and old/now index to the hero traffic graph
 [x] Reduce hero traffic graph line thickness for dense first-screen readability
 [x] Enlarge the top hero panel for better score, SIM, and traffic graph readability
+[x] Keep hero traffic values based on device-wide TrafficStats counters while hiding the extra scope label in the compact UI
+[x] Show both instant traffic rate and sustained usage totals in the hero panel
+[x] Add a faint cumulative traffic layer behind the instant Down/Up traffic graph
+[x] Shorten hero traffic labels to DN/UP for compact scanability
+[x] Keep the hero traffic graph unit fixed to Mbps so the axis label does not flicker between Kbps and Mbps
 ```
 
 ## Network State
@@ -141,6 +156,8 @@ It keeps tethering state, active network type, DNS resolver IPs, live traffic, r
 [-] Show full tethered client device list through public app API
 [x] Show tethering state and available client count in the compact top header
 [x] Remove the separate Tether summary card; tethering state remains in the compact top header
+[x] Hide unknown tethering client count instead of showing a confusing question mark
+[x] Remove developer-facing client-list unavailable warning from the dashboard
 [x] Verify hotspot ON screen shows Active / Wi-Fi / swlan0 on Galaxy SM-A546E
 [ ] Re-run ADB inspection with hotspot on and one connected client
 ```
@@ -184,6 +201,7 @@ It keeps tethering state, active network type, DNS resolver IPs, live traffic, r
 [x] Add Ping console line-count setting with 6-30 visible lines
 [x] Snap Ping console line-count setting in 3-line steps: 6, 9, 12, 15, 18, 21, 24, 27, 30
 [x] Size Ping and Status console panels from selected font size and console line count
+[x] Prefix Ping and Status console lines with two-digit HH:mm:ss timestamps
 [x] Add slow Ping threshold setting with 1000 ms default, 100-3000 ms range, and 100 ms steps
 [x] Color Ping console lines: normal green, slow response yellow, error/unreachable red
 [x] Remove visible Ping loss text from the dashboard while keeping loss available for internal health scoring
@@ -304,7 +322,7 @@ It keeps tethering state, active network type, DNS resolver IPs, live traffic, r
 [x] 2026-07-02 Galaxy SM-A546E screenshot smoke: Probe chart fits card width and failure marker strip is gone
 [x] 2026-07-02 Galaxy SM-A546E screenshot smoke: Probe chart keeps grid plus old/now and ms axis labels
 [x] 2026-07-02 Hero traffic chart axis ./gradlew testDebugUnitTest assembleDebug
-[x] 2026-07-02 Galaxy SM-A546E screenshot smoke: hero traffic chart shows Kbps/Mbps scale, old/now index, thin Down/Up lines
+[x] 2026-07-02 Galaxy SM-A546E screenshot smoke: hero traffic chart shows Mbps scale, old/now index, thin Down/Up lines
 [x] 2026-07-02 Ping console settings/parser/buffer ./gradlew :app:testDebugUnitTest
 [x] 2026-07-02 Ping console final ./gradlew :app:testDebugUnitTest :app:assembleDebug
 [x] 2026-07-02 Galaxy SM-A546E screenshot smoke: Ping console shows actual ping lines, default 1.1.1.1/8.8.8.8 targets, settings dialog, and wrapped time values
@@ -357,4 +375,21 @@ It keeps tethering state, active network type, DNS resolver IPs, live traffic, r
 [x] 2026-07-02 Thin one-line DNS resolver row and fully unmasked scroll body ./gradlew :app:testDebugUnitTest :app:assembleDebug
 [x] 2026-07-02 DNS row duplicate text label removed; icon now labels the resolver row ./gradlew :app:testDebugUnitTest :app:assembleDebug
 [x] 2026-07-02 Galaxy SM-A546E screenshot smoke: DNS row shows only the DNS icon plus resolver IP text, and scroll content is not alpha-masked; saved at /private/tmp/tetherwatch-dns-icon-only-unmasked-scroll.png
+[x] 2026-07-02 Hide unknown tether client count, remove client-list unavailable warning, and keep hero traffic values based on device-wide counters ./gradlew :app:testDebugUnitTest :app:assembleDebug
+[x] 2026-07-02 Galaxy SM-A546E screenshot smoke: Tethering header no longer shows unknown client count, no client-list unavailable warning is visible, and hero graph values remain device-wide; saved at /private/tmp/tetherwatch-device-traffic-no-client-warning.png
+[x] 2026-07-02 Instant and cumulative traffic display: hero shows current Mbps plus 60s/session usage, and graph overlays cumulative traffic shape ./gradlew :app:testDebugUnitTest :app:assembleDebug
+[x] 2026-07-02 Galaxy SM-A546E screenshot smoke: hero traffic shows Down/Up Mbps, 60s total, Session total, and cumulative traffic layer without text clipping; saved at /private/tmp/tetherwatch-traffic-rate-and-usage.png
+[x] 2026-07-02 Score breakdown status lamps and DN/UP traffic labels ./gradlew :app:testDebugUnitTest :app:assembleDebug
+[x] 2026-07-02 Galaxy SM-A546E screenshot smoke: score ring shows readable Net/Ping/Loss/Jitter/Flow labels with colored status lamps and no clipped numeric fractions; saved at /private/tmp/tetherwatch-score-status-lamps-dn-up.png
+[x] 2026-07-02 Hero card layout: top row split into info, DN/UP rate, and 60s/session usage columns; score ring aligned to the first third and traffic graph spans the second and third columns; score lamps along the bottom ./gradlew :app:testDebugUnitTest :app:assembleDebug
+[x] 2026-07-02 Hero card typography: normalize top three-column text to the same compact metric size for cleaner alignment
+[x] 2026-07-02 Galaxy SM-A546E screenshot smoke: hero card shows equal top columns, the score ring aligned to the first third, the graph spanning the second and third columns, and normalized top typography; saved at /private/tmp/tetherwatch-hero-grid-typography.png
+[x] 2026-07-02 Ping and Status console timestamps: prefix both console streams with two-digit HH:mm:ss while preserving line color classification ./gradlew :app:testDebugUnitTest :app:assembleDebug
+[-] 2026-07-02 Hero usage column: shorten Session label to Sess so the session total fits in the 3-column hero grid; superseded by restored Session label after the 60-second graph rebuild
+[x] 2026-07-02 Flow-first traffic graph: EWMA flow lines, drop markers, compact flow/drop label, preserved DN/UP and 60s/session hero metrics ./gradlew :app:testDebugUnitTest :app:assembleDebug
+[x] 2026-07-02 Galaxy SM-A546E screenshot smoke: flow-first hero graph shows DN/UP, 60s total, Session total, compact flow label, and no text clipping; saved at /private/tmp/tetherwatch-flow-first-traffic.png
+[x] 2026-07-02 Score factor indicators: replace flat colored dots with tiny donut arcs showing each factor's weighted fill ./gradlew :app:testDebugUnitTest :app:assembleDebug
+[x] 2026-07-02 Galaxy SM-A546E screenshot smoke: score factor indicators show tiny tinted donut rings instead of flat color dots; saved at /private/tmp/tetherwatch-score-mini-donuts-tinted.png
+[x] 2026-07-02 Traffic graph 60-second window: replace last-12-sample timeline with fixed 60s x-axis, active/idle label, minimum 0.25 Mbps axis, and no cumulative relative layer ./gradlew :app:testDebugUnitTest :app:assembleDebug
+[x] 2026-07-02 Galaxy SM-A546E screenshot smoke: hero traffic graph shows 60s->now axis, active seconds label, readable 60s/Session totals, and no cumulative layer; saved at /private/tmp/tetherwatch-traffic-60s-window-session.png
 ```

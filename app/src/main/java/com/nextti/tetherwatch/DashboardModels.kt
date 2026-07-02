@@ -47,8 +47,12 @@ data class NetworkStateSnapshot(
 data class TrafficDashboard(
     val downloadMbps: String = "0.00 Mbps",
     val uploadMbps: String = "0.00 Mbps",
+    val recentDown: String = "0.0 B",
+    val recentUp: String = "0.0 B",
+    val recentTotal: String = "0.0 B",
     val sessionDown: String = "0.0 B",
     val sessionUp: String = "0.0 B",
+    val sessionTotal: String = "0.0 B",
     val stability: TrafficStability = TrafficStability.IDLE,
     val buckets: List<TrafficBucket> = emptyList(),
     val samples: List<TrafficSamplePoint> = emptyList(),
@@ -58,7 +62,9 @@ data class TrafficDashboard(
 data class TrafficSamplePoint(
     val timestampMs: Long,
     val rxBps: Double,
-    val txBps: Double
+    val txBps: Double,
+    val rxBytes: Long = 0L,
+    val txBytes: Long = 0L
 )
 
 data class ProbeDashboard(

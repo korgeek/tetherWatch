@@ -48,11 +48,11 @@ class EndpointConsoleLineClassifierTest {
     fun statusPageIndicatorsDriveLineTone() {
         assertEquals(
             ConsoleLineTone.NORMAL,
-            EndpointConsoleLineClassifier.tone("GET claude -> none / All Systems Operational")
+            EndpointConsoleLineClassifier.tone("01:02:03 GET claude -> none / All Systems Operational")
         )
         assertEquals(
             ConsoleLineTone.SLOW,
-            EndpointConsoleLineClassifier.tone("GET openai -> minor / Partial System Degradation")
+            EndpointConsoleLineClassifier.tone("01:02:04 GET openai -> minor / Partial System Degradation")
         )
         assertEquals(
             ConsoleLineTone.ERROR,

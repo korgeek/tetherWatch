@@ -10,7 +10,14 @@ enum class DashboardHealth {
 
 data class DashboardScore(
     val value: Int,
-    val health: DashboardHealth
+    val health: DashboardHealth,
+    val breakdown: List<ScoreBreakdown> = emptyList()
+)
+
+data class ScoreBreakdown(
+    val label: String,
+    val value: Int,
+    val max: Int
 )
 
 object DashboardScoreCalculator {
@@ -23,14 +30,12 @@ object DashboardScoreCalculator {
         trafficStability: TrafficStability
     ): DashboardScore {
         if (!isConnected || !isValidated && packetLossPercent == 100) {
-            return DashboardScore(0, DashboardHealth.OFFLINE)
+            return DashboardScore(0, DashboardHealth.OFFLINE, emptyBreakdown())
         }
 
-        var score = 0
-        if (isConnected) score += 20
-        if (isValidated) score += 15
+        val linkScore = (if (isConnected) 20 else 0) + (if (isValidated) 15 else 0)
 
-        score += when {
+        val latencyScore = when {
             averageLatencyMs == null -> 0
             averageLatencyMs < 50 -> 25
             averageLatencyMs < 100 -> 20
@@ -38,26 +43,34 @@ object DashboardScoreCalculator {
             else -> 0
         }
 
-        score += when {
+        val lossScore = when {
             packetLossPercent < 1 -> 20
             packetLossPercent < 3 -> 16
             packetLossPercent <= 10 -> 8
             else -> 0
         }
 
-        score += when {
+        val jitterScore = when {
             jitterMs == null -> 0
             jitterMs < 20 -> 10
             jitterMs < 60 -> 5
             else -> 0
         }
 
-        score += when (trafficStability) {
+        val flowScore = when (trafficStability) {
             TrafficStability.STABLE, TrafficStability.IDLE -> 10
             TrafficStability.BURSTY -> 5
             TrafficStability.DROPPING -> 0
         }
 
+        val breakdown = listOf(
+            ScoreBreakdown("LINK", linkScore, 35),
+            ScoreBreakdown("LAT", latencyScore, 25),
+            ScoreBreakdown("LOSS", lossScore, 20),
+            ScoreBreakdown("JIT", jitterScore, 10),
+            ScoreBreakdown("FLOW", flowScore, 10)
+        )
+        val score = breakdown.sumOf { it.value }
         val value = score.coerceIn(0, 100)
         val health = when (value) {
             0 -> DashboardHealth.OFFLINE
@@ -66,6 +79,16 @@ object DashboardScoreCalculator {
             in 50..74 -> DashboardHealth.UNSTABLE
             else -> DashboardHealth.POOR
         }
-        return DashboardScore(value, health)
+        return DashboardScore(value, health, breakdown)
+    }
+
+    private fun emptyBreakdown(): List<ScoreBreakdown> {
+        return listOf(
+            ScoreBreakdown("LINK", 0, 35),
+            ScoreBreakdown("LAT", 0, 25),
+            ScoreBreakdown("LOSS", 0, 20),
+            ScoreBreakdown("JIT", 0, 10),
+            ScoreBreakdown("FLOW", 0, 10)
+        )
     }
 }

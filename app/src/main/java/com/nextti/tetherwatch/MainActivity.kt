@@ -432,7 +432,7 @@ private fun TetherDashboardScreen(
                         )
                     } else {
                         TopStatusHeader(visual)
-                        HeroPanel(visual.hero, state.score, state.traffic.samples)
+                        HeroPanel(visual.hero, state.score, state.traffic)
                         StatusTileGrid(visual.tiles)
                         ProbePanel(state = state)
                         EndpointPanel(state = state)
@@ -669,6 +669,11 @@ private fun PermissionRationaleDialog(
 
 @Composable
 private fun TopStatusHeader(visual: DashboardVisualModel) {
+    val tetheringText = listOf(
+        visual.header.tetheringLabel,
+        visual.header.clientCountLabel
+    ).filter { it.isNotBlank() }.joinToString(" ")
+
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -703,7 +708,7 @@ private fun TopStatusHeader(visual: DashboardVisualModel) {
                 )
                 Spacer(Modifier.width(5.dp))
                 Text(
-                    "${visual.header.tetheringLabel} ${visual.header.clientCountLabel}",
+                    tetheringText,
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1
@@ -714,55 +719,162 @@ private fun TopStatusHeader(visual: DashboardVisualModel) {
 }
 
 @Composable
-private fun HeroPanel(hero: HeroVisualModel, score: DashboardScore, samples: List<TrafficSamplePoint>) {
+private fun HeroPanel(hero: HeroVisualModel, score: DashboardScore, traffic: TrafficDashboard) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.primaryContainer,
         contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
         shape = RoundedCornerShape(18.dp)
     ) {
-        Row(
+        Column(
             modifier = Modifier.padding(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            ScoreRing(score.value, score.health, modifier = Modifier.size(88.dp))
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.Top
+            ) {
+                HeroStatusText(hero, modifier = Modifier.weight(1f))
+                TrafficRateLegend(hero, modifier = Modifier.weight(1f))
+                TrafficUsageLegend(traffic, modifier = Modifier.weight(1f))
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier.weight(1f),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Column {
-                        Text(hero.healthLabel, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        Text(
-                            hero.activeSimLabel,
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.78f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                    TrafficLegend(hero)
+                    ScoreRing(score.value, score.health, modifier = Modifier.size(98.dp))
                 }
                 DualTrafficSparkline(
-                    samples = samples,
+                    samples = traffic.samples,
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .height(82.dp)
+                        .weight(2f)
+                        .height(108.dp)
                 )
             }
+            ScoreBreakdownLampStrip(score.breakdown)
         }
     }
 }
 
 @Composable
-private fun TrafficLegend(hero: HeroVisualModel) {
-    Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        LegendMetric("Down", hero.downloadValue, Color(0xFF1F7A5C))
-        LegendMetric("Up", hero.uploadValue, Color(0xFF2F6DF6))
+private fun HeroStatusText(hero: HeroVisualModel, modifier: Modifier = Modifier) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(
+            hero.healthLabel,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.88f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Text(
+            hero.activeSimLabel,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.72f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
+}
+
+@Composable
+private fun TrafficRateLegend(hero: HeroVisualModel, modifier: Modifier = Modifier) {
+    Column(modifier = modifier, horizontalAlignment = Alignment.Start, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        LegendMetric("DN", hero.downloadValue, Color(0xFF1F7A5C))
+        LegendMetric("UP", hero.uploadValue, Color(0xFF2F6DF6))
+    }
+}
+
+@Composable
+private fun TrafficUsageLegend(traffic: TrafficDashboard, modifier: Modifier = Modifier) {
+    Column(modifier = modifier, horizontalAlignment = Alignment.Start, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        TrafficUsageRow("60s", traffic.recentTotal)
+        TrafficUsageRow("Session", traffic.sessionTotal)
+    }
+}
+
+@Composable
+private fun ScoreBreakdownLampStrip(items: List<ScoreBreakdown>) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        items.forEach { item ->
+            ScoreBreakdownLampItem(item)
+        }
+    }
+}
+
+@Composable
+private fun ScoreBreakdownLampItem(item: ScoreBreakdown) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        ScoreBreakdownMiniDonut(item)
+        Text(
+            item.displayLabel(),
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.72f),
+            maxLines = 1
+        )
+    }
+}
+
+@Composable
+private fun ScoreBreakdownMiniDonut(item: ScoreBreakdown) {
+    val color = item.scoreBreakdownLampColor()
+    val progress = item.scoreBreakdownFraction()
+    Canvas(modifier = Modifier.size(13.dp)) {
+        val stroke = Stroke(width = 2.4.dp.toPx(), cap = StrokeCap.Round)
+        val inset = 2.dp.toPx()
+        val arcSize = Size(size.width - inset * 2, size.height - inset * 2)
+        drawArc(
+            color = color.copy(alpha = 0.26f),
+            startAngle = -90f,
+            sweepAngle = 360f,
+            useCenter = false,
+            topLeft = Offset(inset, inset),
+            size = arcSize,
+            style = stroke
+        )
+        drawArc(
+            color = color,
+            startAngle = -90f,
+            sweepAngle = 360f * progress,
+            useCenter = false,
+            topLeft = Offset(inset, inset),
+            size = arcSize,
+            style = stroke
+        )
+    }
+}
+
+@Composable
+private fun TrafficUsageRow(label: String, value: String) {
+    HeroMetricRow(label, value, modifier = Modifier.fillMaxWidth())
+}
+
+@Composable
+private fun HeroMetricRow(label: String, value: String, modifier: Modifier = Modifier) {
+    Text(
+        "$label $value",
+        modifier = modifier,
+        style = MaterialTheme.typography.labelMedium,
+        fontWeight = FontWeight.SemiBold,
+        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.70f),
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis
+    )
 }
 
 @Composable
@@ -1707,6 +1819,22 @@ private fun TrafficFitLineChart(chartModel: TrafficChartModel, modifier: Modifie
             8.dp.toPx(),
             textPaint
         )
+        val activityLabel = if (chartModel.dropCount > 0) {
+            "${chartModel.activityLabel} · drops ${chartModel.dropCount}"
+        } else {
+            chartModel.activityLabel
+        }
+        val flowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = if (chartModel.dropCount > 0) Color(0xFFD94A3A).toArgb() else labelColor.toArgb()
+            textSize = 8.dp.toPx()
+        }
+        val flowLabelWidth = flowPaint.measureText(activityLabel)
+        drawContext.canvas.nativeCanvas.drawText(
+            activityLabel,
+            (plotLeft + plotWidth - flowLabelWidth).coerceAtLeast(plotLeft),
+            8.dp.toPx(),
+            flowPaint
+        )
         chartModel.yAxisLabels.forEach { label ->
             val y = plotTop + plotHeight * (1f - (label.value / maxValue).toFloat())
             drawLine(
@@ -1740,8 +1868,40 @@ private fun TrafficFitLineChart(chartModel: TrafficChartModel, modifier: Modifie
             )
         }
 
+        drawTrafficSmoothedSeries(chartModel.smoothedDownSeries, maxX, maxValue, plotLeft, plotTop, plotWidth, plotHeight, Color(0xFF1F7A5C))
+        drawTrafficSmoothedSeries(chartModel.smoothedUpSeries, maxX, maxValue, plotLeft, plotTop, plotWidth, plotHeight, Color(0xFF2F6DF6))
         drawTrafficRateSeries(chartModel.downSeries, maxX, maxValue, plotLeft, plotTop, plotWidth, plotHeight, Color(0xFF1F7A5C))
         drawTrafficRateSeries(chartModel.upSeries, maxX, maxValue, plotLeft, plotTop, plotWidth, plotHeight, Color(0xFF2F6DF6))
+        drawTrafficDropMarkers(chartModel.dropMarkers, maxX, plotLeft, plotTop, plotWidth, plotHeight)
+    }
+}
+
+private fun DrawScope.drawTrafficSmoothedSeries(
+    series: TrafficRateSeries,
+    maxX: Double,
+    maxValue: Double,
+    plotLeft: Float,
+    plotTop: Float,
+    plotWidth: Float,
+    plotHeight: Float,
+    color: Color
+) {
+    val points = series.x.zip(series.y)
+    if (points.size < 2) return
+    points.zipWithNext().forEach { (start, end) ->
+        drawLine(
+            color = color.copy(alpha = 0.82f),
+            start = Offset(
+                x = plotLeft + ((start.first / maxX).toFloat() * plotWidth),
+                y = plotTop + plotHeight * (1f - (start.second / maxValue).toFloat().coerceIn(0f, 1f))
+            ),
+            end = Offset(
+                x = plotLeft + ((end.first / maxX).toFloat() * plotWidth),
+                y = plotTop + plotHeight * (1f - (end.second / maxValue).toFloat().coerceIn(0f, 1f))
+            ),
+            strokeWidth = 2.4.dp.toPx(),
+            cap = StrokeCap.Round
+        )
     }
 }
 
@@ -1759,15 +1919,35 @@ private fun DrawScope.drawTrafficRateSeries(
     if (points.size < 2) return
     points.zipWithNext().forEach { (start, end) ->
         drawLine(
-            color = color,
+            color = color.copy(alpha = 0.46f),
             start = Offset(
                 x = plotLeft + ((start.first / maxX).toFloat() * plotWidth),
-                y = plotTop + plotHeight * (1f - (start.second / maxValue).toFloat())
+                y = plotTop + plotHeight * (1f - (start.second / maxValue).toFloat().coerceIn(0f, 1f))
             ),
             end = Offset(
                 x = plotLeft + ((end.first / maxX).toFloat() * plotWidth),
-                y = plotTop + plotHeight * (1f - (end.second / maxValue).toFloat())
+                y = plotTop + plotHeight * (1f - (end.second / maxValue).toFloat().coerceIn(0f, 1f))
             ),
+            strokeWidth = 1.dp.toPx(),
+            cap = StrokeCap.Round
+        )
+    }
+}
+
+private fun DrawScope.drawTrafficDropMarkers(
+    markers: List<TrafficDropMarker>,
+    maxX: Double,
+    plotLeft: Float,
+    plotTop: Float,
+    plotWidth: Float,
+    plotHeight: Float
+) {
+    markers.forEach { marker ->
+        val x = plotLeft + ((marker.x / maxX).toFloat().coerceIn(0f, 1f) * plotWidth)
+        drawLine(
+            color = Color(0xFFD94A3A).copy(alpha = 0.86f),
+            start = Offset(x, plotTop + plotHeight * 0.18f),
+            end = Offset(x, plotTop + plotHeight * 0.86f),
             strokeWidth = 2.dp.toPx(),
             cap = StrokeCap.Round
         )
@@ -1985,6 +2165,28 @@ private fun DashboardHealth.tone(): TileColors = when (this) {
     DashboardHealth.UNSTABLE -> TileColors(Color(0xFFFFF4D6), Color(0xFFE6A700))
     DashboardHealth.POOR -> TileColors(Color(0xFFFFF4D6), Color(0xFFE6A700))
     DashboardHealth.OFFLINE -> TileColors(Color(0xFFFFE8E4), Color(0xFFD94A3A))
+}
+
+private fun ScoreBreakdown.scoreBreakdownLampColor(): Color {
+    val fraction = scoreBreakdownFraction()
+    return when {
+        fraction >= 0.8f -> Color(0xFF1F7A5C)
+        fraction >= 0.5f -> Color(0xFFE6A700)
+        else -> Color(0xFFD94A3A)
+    }
+}
+
+private fun ScoreBreakdown.scoreBreakdownFraction(): Float {
+    return if (max <= 0) 0f else (value.toFloat() / max.toFloat()).coerceIn(0f, 1f)
+}
+
+private fun ScoreBreakdown.displayLabel(): String = when (label) {
+    "LINK" -> "Net"
+    "LAT" -> "Ping"
+    "LOSS" -> "Loss"
+    "JIT" -> "Jitter"
+    "FLOW" -> "Flow"
+    else -> label.lowercase().replaceFirstChar { it.uppercase() }
 }
 
 private fun DashboardTileIcon.glyph(): String = when (this) {

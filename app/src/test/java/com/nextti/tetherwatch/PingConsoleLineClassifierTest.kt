@@ -9,7 +9,7 @@ class PingConsoleLineClassifierTest {
         assertEquals(
             PingConsoleLineTone.NORMAL,
             PingConsoleLineClassifier.tone(
-                "64 bytes from 1.1.1.1: icmp_seq=1 ttl=55 time=42.4 ms",
+                "01:02:03 64 bytes from 1.1.1.1: icmp_seq=1 ttl=55 time=42.4 ms",
                 slowResponseThresholdMs = 1000
             )
         )

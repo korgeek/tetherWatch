@@ -78,7 +78,7 @@ object DashboardVisualModelBuilder {
                 countryCode = country.countryIso?.uppercase()?.ifBlank { "--" }?.take(2) ?: "--",
                 tetheringLabel = headerTetheringLabel(state.tethering),
                 clientCountLabel = state.tethering.clientCount?.toString()
-                    ?: if (state.tethering.state == TetheringState.OFF) "0" else "?",
+                    ?: if (state.tethering.state == TetheringState.OFF) "0" else "",
                 tetheringActive = state.tethering.state == TetheringState.ACTIVE
             ),
             hero = HeroVisualModel(
@@ -127,11 +127,6 @@ object DashboardVisualModelBuilder {
                     )
                 }
                 if (!state.network.isValidated) add(DashboardAlertVisualModel("Internet validation failed.", DashboardTileTone.BAD))
-                if (state.tethering.state == TetheringState.ACTIVE &&
-                    state.tethering.clientVisibility == TetheringClientVisibility.RESTRICTED
-                ) {
-                    add(DashboardAlertVisualModel("Device list unavailable on this Android build.", DashboardTileTone.WARN))
-                }
             }
         )
     }

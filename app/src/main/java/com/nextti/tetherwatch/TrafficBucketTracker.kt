@@ -21,6 +21,11 @@ data class TrafficBucket(
     val peakTxBps: Double
 )
 
+data class TrafficWindowUsage(
+    val rxBytes: Long,
+    val txBytes: Long
+)
+
 class TrafficBucketTracker(
     private val bucketSizeMs: Long = 60_000L,
     private val maxBuckets: Int = 60
@@ -100,7 +105,7 @@ class TrafficBucketTracker(
 }
 
 class TrafficSampleHistory(
-    private val maxSamples: Int = 45
+    private val maxSamples: Int = 300
 ) {
     private val samples = ArrayDeque<TrafficSamplePoint>()
 
@@ -110,4 +115,13 @@ class TrafficSampleHistory(
     }
 
     fun samples(): List<TrafficSamplePoint> = samples.toList()
+
+    fun usageInLast(timestampMs: Long, windowMs: Long): TrafficWindowUsage {
+        val windowStart = timestampMs - windowMs
+        val recent = samples.filter { it.timestampMs >= windowStart }
+        return TrafficWindowUsage(
+            rxBytes = recent.sumOf { it.rxBytes },
+            txBytes = recent.sumOf { it.txBytes }
+        )
+    }
 }

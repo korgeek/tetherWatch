@@ -1,5 +1,9 @@
 package com.nextti.tetherwatch
 
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
 import kotlin.math.roundToLong
 
 class PingConsoleBuffer(private val maxLines: Int = PingConsoleLineOptions.MAX_COUNT) {
@@ -17,6 +21,19 @@ class PingConsoleBuffer(private val maxLines: Int = PingConsoleLineOptions.MAX_C
     }
 
     fun lines(): List<String> = lines.toList()
+}
+
+object ConsoleLineTimestampFormatter {
+    fun prefix(
+        line: String,
+        timestampMs: Long = System.currentTimeMillis(),
+        timeZone: TimeZone = TimeZone.getDefault()
+    ): String {
+        val time = SimpleDateFormat("HH:mm:ss", Locale.US).apply {
+            this.timeZone = timeZone
+        }.format(Date(timestampMs))
+        return "$time ${line.trim()}"
+    }
 }
 
 data class ParsedPingOutput(

@@ -165,7 +165,15 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         val txBps = txDelta / elapsedSeconds
 
         trafficTracker.addSample(timestamp, rxDelta, txDelta, rxBps, txBps)
-        trafficSampleHistory.add(TrafficSamplePoint(timestamp, rxBps, txBps))
+        trafficSampleHistory.add(
+            TrafficSamplePoint(
+                timestampMs = timestamp,
+                rxBps = rxBps,
+                txBps = txBps,
+                rxBytes = rxDelta,
+                txBytes = txDelta
+            )
+        )
 
         previousRxBytes = rxBytes
         previousTxBytes = txBytes
@@ -174,11 +182,16 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         val network = readNetworkState()
         val probe = readProbeDashboard()
         val endpoint = readEndpointDashboard()
+        val recentUsage = trafficSampleHistory.usageInLast(timestamp, 60_000L)
         val traffic = TrafficDashboard(
             downloadMbps = formatMbps(rxBps),
             uploadMbps = formatMbps(txBps),
+            recentDown = formatBytes(recentUsage.rxBytes),
+            recentUp = formatBytes(recentUsage.txBytes),
+            recentTotal = formatBytes(recentUsage.rxBytes + recentUsage.txBytes),
             sessionDown = formatBytes(rxBytes - initialRxBytes),
             sessionUp = formatBytes(txBytes - initialTxBytes),
+            sessionTotal = formatBytes(rxBytes - initialRxBytes + txBytes - initialTxBytes),
             stability = trafficTracker.stability(),
             buckets = trafficTracker.buckets().takeLast(8),
             samples = trafficSampleHistory.samples(),
@@ -270,7 +283,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         pingTargetScheduler.dueTargets(probeSettings.targetSettings, now).forEach { targetSetting ->
             val target = targetSetting.target
             val parsed = pingTarget(target)
-            pingConsole.add(parsed.consoleLine)
+            pingConsole.add(ConsoleLineTimestampFormatter.prefix(parsed.consoleLine, now))
             probeResults.addLast(parsed.result)
             while (probeResults.size > 60) probeResults.removeFirst()
             pingTargetScheduler.markPingStarted(targetSetting, now)
@@ -282,7 +295,12 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         val now = System.currentTimeMillis()
         endpointTargetScheduler.dueTargets(endpointSettings.targetSettings, now).forEach { targetSetting ->
             val result = checkEndpoint(targetSetting)
-            endpointConsole.add(EndpointCheckResultFormatter.consoleLine(result))
+            endpointConsole.add(
+                ConsoleLineTimestampFormatter.prefix(
+                    EndpointCheckResultFormatter.consoleLine(result),
+                    now
+                )
+            )
             endpointTargetScheduler.markCheckStarted(targetSetting, now)
         }
         sample()

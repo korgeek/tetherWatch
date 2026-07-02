@@ -35,6 +35,30 @@ class DashboardScoreCalculatorTest {
     }
 
     @Test
+    fun exposesWeightedScoreBreakdownForDashboardBars() {
+        val score = DashboardScoreCalculator.calculate(
+            isConnected = true,
+            isValidated = true,
+            averageLatencyMs = 80,
+            packetLossPercent = 2,
+            jitterMs = 35,
+            trafficStability = TrafficStability.BURSTY
+        )
+
+        assertEquals(81, score.value)
+        assertEquals(
+            listOf(
+                ScoreBreakdown("LINK", 35, 35),
+                ScoreBreakdown("LAT", 20, 25),
+                ScoreBreakdown("LOSS", 16, 20),
+                ScoreBreakdown("JIT", 5, 10),
+                ScoreBreakdown("FLOW", 5, 10)
+            ),
+            score.breakdown
+        )
+    }
+
+    @Test
     fun unstableWhenLatencyAndLossAreHigh() {
         val score = DashboardScoreCalculator.calculate(
             isConnected = true,

@@ -54,13 +54,13 @@ class DashboardVisualModelBuilderTest {
         assertEquals("SIM 2 · Carrier B", visual.header.simProviderLabel)
         assertEquals("ID", visual.header.countryCode)
         assertEquals("Tethering", visual.header.tetheringLabel)
-        assertEquals("?", visual.header.clientCountLabel)
+        assertEquals("", visual.header.clientCountLabel)
         assertTrue(visual.header.tetheringActive)
         assertEquals(listOf("DNS"), visual.tiles.map { it.label })
         assertEquals("202.152.0.2 · 10.19.19.20", visual.tiles[0].value)
         assertEquals("", visual.tiles[0].detail)
         assertEquals("IP 10.0.2.15", visual.hero.activeSimLabel)
-        assertTrue(visual.alerts.any { it.message == "Device list unavailable on this Android build." })
+        assertFalse(visual.alerts.any { it.message == "Device list unavailable on this Android build." })
         assertFalse(visual.tiles.any { it.value.contains("Permission denied") })
     }
 
@@ -122,6 +122,22 @@ class DashboardVisualModelBuilderTest {
         assertEquals("Tethering", visual.header.tetheringLabel)
         assertEquals("2", visual.header.clientCountLabel)
         assertFalse(visual.tiles.any { it.label == "Tether" })
+    }
+
+    @Test
+    fun restrictedTetherClientListDoesNotShowUnknownCountOrDeveloperWarning() {
+        val visual = DashboardVisualModelBuilder.build(
+            DashboardState(
+                tethering = TetheringDashboard(
+                    state = TetheringState.ACTIVE,
+                    clientCount = null,
+                    clientVisibility = TetheringClientVisibility.RESTRICTED
+                )
+            )
+        )
+
+        assertEquals("", visual.header.clientCountLabel)
+        assertFalse(visual.alerts.any { it.message == "Device list unavailable on this Android build." })
     }
 
     @Test

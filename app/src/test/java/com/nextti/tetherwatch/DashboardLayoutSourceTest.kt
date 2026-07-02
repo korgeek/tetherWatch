@@ -11,13 +11,78 @@ class DashboardLayoutSourceTest {
 
         assertTrue(mainActivity.contains("HeroPanel(hero: HeroVisualModel"))
         assertTrue(mainActivity.contains(".padding(16.dp)"))
-        assertTrue(mainActivity.contains("ScoreRing(score.value, score.health, modifier = Modifier.size(88.dp))"))
-        assertTrue(mainActivity.contains(".height(82.dp)"))
+        assertTrue(mainActivity.contains("HeroStatusText(hero, modifier = Modifier.weight(1f))"))
+        assertTrue(mainActivity.contains("TrafficRateLegend(hero, modifier = Modifier.weight(1f))"))
+        assertTrue(mainActivity.contains("TrafficUsageLegend(traffic, modifier = Modifier.weight(1f))"))
+        assertTrue(mainActivity.contains("horizontalArrangement = Arrangement.spacedBy(10.dp)"))
+        assertTrue(mainActivity.contains("Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(2.dp))"))
+        assertTrue(mainActivity.contains("style = MaterialTheme.typography.labelMedium"))
+        assertTrue(mainActivity.contains("modifier = Modifier.weight(1f),"))
+        assertTrue(mainActivity.contains(".weight(2f)"))
+        assertTrue(mainActivity.contains("ScoreRing(score.value, score.health, modifier = Modifier.size(98.dp))"))
+        assertTrue(mainActivity.contains(".height(108.dp)"))
+        assertTrue(mainActivity.contains("ScoreBreakdownLampStrip(score.breakdown)"))
+        assertTrue(mainActivity.contains("ScoreBreakdownLampItem(item)"))
+        assertTrue(mainActivity.contains("ScoreBreakdownMiniDonut(item)"))
+        assertTrue(mainActivity.contains("item.scoreBreakdownFraction()"))
+        assertTrue(mainActivity.contains("Canvas(modifier = Modifier.size(13.dp))"))
+        assertTrue(mainActivity.contains("color.copy(alpha = 0.26f)"))
+        assertTrue(mainActivity.contains("item.displayLabel()"))
+        assertTrue(mainActivity.contains("item.scoreBreakdownLampColor()"))
+        assertTrue(mainActivity.contains("\"Ping\""))
+        assertTrue(mainActivity.contains("\"Jitter\""))
+        assertTrue(mainActivity.contains("fraction >= 0.8f -> Color(0xFF1F7A5C)"))
+        assertTrue(mainActivity.contains("fraction >= 0.5f -> Color(0xFFE6A700)"))
+        assertTrue(mainActivity.contains("else -> Color(0xFFD94A3A)"))
+        assertTrue(!mainActivity.contains("\"${'$'}{(fraction * 100f).roundToInt()}%\""))
+        assertTrue(!mainActivity.contains("ScoreStatus("))
+        assertTrue(!mainActivity.contains("ScoreSummary(score)"))
+        assertTrue(!mainActivity.contains("ScoreBreakdownStatusRows(score.breakdown)"))
+        assertTrue(!mainActivity.contains("\"Device traffic\","))
+        assertTrue(mainActivity.contains("TrafficUsageRow(\"60s\""))
+        assertTrue(mainActivity.contains("TrafficUsageRow(\"Session\""))
+        assertTrue(mainActivity.contains("traffic.recentTotal"))
+        assertTrue(mainActivity.contains("traffic.sessionTotal"))
+        assertTrue(mainActivity.contains("LegendMetric(\"DN\""))
+        assertTrue(mainActivity.contains("LegendMetric(\"UP\""))
+        assertTrue(!mainActivity.contains("ProbeAverageLegend("))
+    }
+
+    @Test
+    fun heroTrafficChartDrawsFlowFirstSignalsWithoutMovingHeroMetrics() {
+        val mainActivity = File("src/main/java/com/nextti/tetherwatch/MainActivity.kt").readText()
+        val chartStart = mainActivity.indexOf("private fun TrafficFitLineChart(")
+        val chartEnd = mainActivity.indexOf("private fun DrawScope.drawTrafficSmoothedSeries", chartStart + 1)
+        val chartSource = mainActivity.substring(chartStart, chartEnd)
+
+        assertTrue(chartSource.contains("drawTrafficSmoothedSeries(chartModel.smoothedDownSeries"))
+        assertTrue(chartSource.contains("drawTrafficSmoothedSeries(chartModel.smoothedUpSeries"))
+        assertTrue(chartSource.contains("drawTrafficDropMarkers(chartModel.dropMarkers"))
+        assertTrue(chartSource.contains("drawTrafficRateSeries(chartModel.downSeries"))
+        assertTrue(chartSource.contains("drawTrafficRateSeries(chartModel.upSeries"))
+        assertTrue(chartSource.contains("chartModel.activityLabel"))
+        assertTrue(!chartSource.contains("drawTrafficCumulativeSeries(chartModel"))
+        assertTrue(mainActivity.contains("TrafficRateLegend(hero, modifier = Modifier.weight(1f))"))
+        assertTrue(mainActivity.contains("TrafficUsageLegend(traffic, modifier = Modifier.weight(1f))"))
+    }
+
+    @Test
+    fun topHeaderOmitsUnknownTetherClientCount() {
+        val mainActivity = File("src/main/java/com/nextti/tetherwatch/MainActivity.kt").readText()
+        val headerStart = mainActivity.indexOf("private fun TopStatusHeader(")
+        val headerEnd = mainActivity.indexOf("@Composable", headerStart + 1)
+        val headerSource = mainActivity.substring(headerStart, headerEnd)
+
+        assertTrue(headerSource.contains("val tetheringText = listOf("))
+        assertTrue(headerSource.contains("filter { it.isNotBlank() }"))
+        assertTrue(headerSource.contains("joinToString(\" \")"))
+        assertTrue(!headerSource.contains("visual.header.tetheringLabel} ${'$'}{visual.header.clientCountLabel"))
     }
 
     @Test
     fun pingPanelDoesNotShowTargetListAndUsesCompactConsoleRows() {
         val mainActivity = File("src/main/java/com/nextti/tetherwatch/MainActivity.kt").readText()
+        val viewModel = File("src/main/java/com/nextti/tetherwatch/DashboardViewModel.kt").readText()
 
         assertTrue(mainActivity.contains("lines.takeLast(settings.consoleLineCount)"))
         assertTrue(mainActivity.contains("fontSize = settings.consoleFontSizeSp.sp"))
@@ -32,6 +97,7 @@ class DashboardLayoutSourceTest {
         assertTrue(!mainActivity.contains("PingSettingsDialog("))
         assertTrue(!mainActivity.contains(".clickable(onClick = onClick)"))
         assertTrue(!mainActivity.contains("\"Loss \${state.probe.summary.packetLossPercent}%"))
+        assertTrue(viewModel.contains("pingConsole.add(ConsoleLineTimestampFormatter.prefix(parsed.consoleLine, now))"))
     }
 
     @Test
@@ -48,6 +114,8 @@ class DashboardLayoutSourceTest {
         assertTrue(!mainActivity.contains("endpointConsoleLineColor(line, state.probeSettings.slowResponseThresholdMs)"))
         assertTrue(viewModel.contains("EndpointHttpChecker"))
         assertTrue(viewModel.contains("runDueEndpointChecks()"))
+        assertTrue(viewModel.contains("ConsoleLineTimestampFormatter.prefix("))
+        assertTrue(viewModel.contains("EndpointCheckResultFormatter.consoleLine(result)"))
     }
 
     @Test
